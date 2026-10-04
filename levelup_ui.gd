@@ -212,7 +212,7 @@ func set_choices(choice_ids: Array, loadout) -> void:
         elif is_montage:
             lvls[i].text = "МОНТАЖ  ·  2 НАВЫКА → 1 ОРУЖИЕ"
         elif lvl == 0:
-            var slot_count := loadout.count_kind(kind)
+            var slot_count: int = int(loadout.count_kind(kind))
             var slot_max := Upgrades.MAX_WEAPON_SLOTS if kind == "weapon" else Upgrades.MAX_FILM_SLOTS
             var category := "ОРУЖИЕ" if kind == "weapon" else ("ЭХО-ПЛЁНКА" if def.get("echo", false) else "ПЛЁНКА")
             lvls[i].text = "НОВОЕ %s  ·  СЛОТ %d/%d" % [category, slot_count + 1, slot_max]
