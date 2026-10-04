@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="768" height="512" viewBox="0 0 768 512">
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="6">
+    <!-- Row 1: weapons -->
+    <g transform="translate(0 0)" stroke="#00f0ff"><circle cx="64" cy="64" r="47"/><rect x="34" y="43" width="60" height="42" rx="7"/><circle cx="64" cy="64" r="12"/><path d="M41 35v8m12-8v8m12-8v8m12-8v8m12-8v8M41 85v8m12-8v8m12-8v8m12-8v8m12-8v8"/></g>
+    <g transform="translate(128 0)" stroke="#00f0ff"><circle cx="64" cy="64" r="47"/><path d="M35 82 77 40q8-8 16 0t0 16L51 98"/><path d="m43 73 19 19M73 44l12 12M39 86l10 10"/></g>
+    <g transform="translate(256 0)" stroke="#00f0ff"><circle cx="64" cy="64" r="47"/><rect x="43" y="31" width="42" height="66" rx="9"/><path d="M52 43h24M54 57l8 7-8 7m16-14-8 7 8 7M53 83h22"/></g>
+    <g transform="translate(384 0)" stroke="#00f0ff"><circle cx="64" cy="64" r="47"/><path d="M44 82h40l-8-38H52zM51 83l-7 12m38-12 7 12M56 44v-8a8 8 0 0 1 16 0v8"/><path d="M64 53v18m-8-9h16"/></g>
+    <g transform="translate(512 0)" stroke="#00f0ff"><circle cx="64" cy="64" r="47"/><path d="M40 49h40l10 13-10 13H40zM47 49l8-11h14l8 11M48 75l-6 17m32-17 6 17"/><circle cx="61" cy="62" r="5"/></g>
+    <g transform="translate(640 0)" stroke="#00f0ff"><circle cx="64" cy="64" r="47"/><path d="M39 45h50l-7 48H46zM51 57h27m-24 12h18"/><path d="m63 38 5-10 5 10"/></g>
+    <!-- Row 2: weapon evolutions -->
+    <g transform="translate(0 128)" stroke="#fff44f"><circle cx="64" cy="64" r="47"/><rect x="39" y="47" width="49" height="34" rx="6"/><circle cx="63" cy="64" r="10"/><path d="M45 39v8m13-8v8m13-8v8m13-8v8M45 81v8m13-8v8m13-8v8m13-8v8M30 64h8m52 0h8"/></g>
+    <g transform="translate(128 128)" stroke="#fff44f"><circle cx="64" cy="64" r="47"/><path d="M36 78a34 34 0 0 1 56 0M64 61l19-18M64 61l-13-9M64 61v-25"/><path d="M41 83h46"/></g>
+    <g transform="translate(256 128)" stroke="#fff44f"><circle cx="64" cy="64" r="47"/><rect x="47" y="32" width="34" height="53" rx="8"/><path d="M55 45h18M55 58h18M64 85v12m-13-7 13 7 13-7"/></g>
+    <g transform="translate(384 128)" stroke="#fff44f"><circle cx="64" cy="64" r="47"/><path d="M36 64h56M64 36v56M44 44l40 40m0-40L44 84"/><circle cx="64" cy="64" r="12"/></g>
+    <g transform="translate(512 128)" stroke="#fff44f"><circle cx="64" cy="64" r="47"/><path d="M39 43h50l-7 46H46zM51 55h26m-22 13h18"/><circle cx="65" cy="79" r="4"/><path d="M36 35l-8-8m60 8 8-8"/></g>
+    <g transform="translate(640 128)" stroke="#ff2e88"><circle cx="64" cy="64" r="47"/><circle cx="64" cy="64" r="25"/><path d="M64 39v25l18 10M64 25v8m0 62v8m39-39h-8M25 64h-8"/></g>
+    <!-- Row 3: films -->
+    <g transform="translate(0 256)" stroke="#ff2e88"><circle cx="64" cy="64" r="47"/><circle cx="64" cy="64" r="13"/><path d="M64 34v12m0 36v12M34 64h12m36 0h12M43 43l9 9m24 24 9 9m0-42-9 9m-24 24-9 9"/></g>
+    <g transform="translate(128 256)" stroke="#ff2e88"><circle cx="64" cy="64" r="47"/><path d="M34 74h60M40 62h45M48 50h31M57 38h16"/><path d="m83 84 11-10-11-10"/></g>
+    <g transform="translate(256 256)" stroke="#ff2e88"><circle cx="64" cy="64" r="47"/><rect x="35" y="42" width="58" height="43" rx="4"/><path d="M46 53v21m13-21v21m13-21v21m13-21v21"/></g>
+    <g transform="translate(384 256)" stroke="#ff2e88"><circle cx="64" cy="64" r="47"/><path d="M83 43a29 29 0 1 0 8 27"/><path d="m78 31 9 13-15 3"/><path d="M54 55l19 19"/></g>
+    <g transform="translate(512 256)" stroke="#ff2e88"><circle cx="64" cy="64" r="47"/><path d="M40 48h49M45 48v31q0 8 8 8h31q8 0 8-8V48M54 48V37h24v11M53 61v14m11-14v14m11-14v14"/></g>
+    <g transform="translate(640 256)" stroke="#ff2e88"><circle cx="64" cy="64" r="47"/><path d="M36 46h56v36H36zM49 46v-9h30v9m-15 36v13m-13 0h26"/><path d="m46 64 8 8 18-18"/></g>
+    <!-- Row 4: echo and fallback -->
+    <g transform="translate(0 384)" stroke="#b69cff"><circle cx="64" cy="64" r="47"/><path d="M29 64h12l8-18 13 36 10-27 8 9h19"/></g>
+    <g transform="translate(128 384)" stroke="#b69cff"><circle cx="64" cy="64" r="47"/><path d="M37 48h27v30H37zM65 48h27v30H65z"/><path d="M49 40v8m41-8v8M49 78v8m41-8v8"/></g>
+    <g transform="translate(256 384)" stroke="#b69cff"><circle cx="64" cy="64" r="47"/><circle cx="64" cy="64" r="10"/><path d="M64 28a36 36 0 0 1 36 36M64 39a25 25 0 0 1 25 25M64 100a36 36 0 0 1-36-36M64 89a25 25 0 0 1-25-25"/></g>
+    <g transform="translate(384 384)" stroke="#fff44f"><circle cx="64" cy="64" r="47"/><path d="M64 35v58M35 64h58"/><circle cx="64" cy="64" r="18"/></g>
+    <g transform="translate(512 384)" stroke="#fff44f"><circle cx="64" cy="64" r="47"/><path d="M83 43a28 28 0 1 0 9 27M77 33l9 11-14 4"/><path d="M64 49v16l12 7"/></g>
+    <g transform="translate(640 384)" stroke="#fff44f"><circle cx="64" cy="64" r="47"/><path d="m69 30-24 38h18l-5 30 27-42H66z"/><path d="M31 42h8m50 44h8"/></g>
+  </g>
+</svg>
