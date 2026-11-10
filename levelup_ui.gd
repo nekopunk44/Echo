@@ -64,8 +64,12 @@ func _ready() -> void:
 		bar.position = Vector2(x, 166)
 		bar.size = Vector2(16, 56)
 		root.add_child(bar)
-	root.add_child(_label("PAUSE", Vector2(250, 140), Vector2(400, 100), 72, Art.PINK))
+	var pause_label := _label("PAUSE", Vector2(250, 166), Vector2(400, 56), 56, Art.PINK)
+	pause_label.add_theme_font_override("font", Art.OSD_FONT)
+	pause_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	root.add_child(pause_label)
 	sub_lbl = _label("", Vector2(0, 245), Vector2(720, 60), 44, Art.CYAN, HORIZONTAL_ALIGNMENT_CENTER)
+	sub_lbl.add_theme_font_override("font", Art.BOLD_FONT)
 	root.add_child(sub_lbl)
 
 	for i in 3:
@@ -101,6 +105,7 @@ func _ready() -> void:
 		montage_views.append([part_a, part_b, result_icon, montage_view])
 
 		var nm := _label("", Vector2(150, 14), Vector2(400, 50), 34, Art.YELLOW)
+		nm.add_theme_font_override("font", Art.BOLD_FONT)
 		var lv := _label("", Vector2(150, 66), Vector2(400, 36), 23, Art.CYAN)
 		var ds := _label("", Vector2(150, 108), Vector2(430, 116), 21, Art.WHITE)
 		ds.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -117,6 +122,7 @@ func _ready() -> void:
 	reroll_btn.position = Vector2(160, 1150)
 	reroll_btn.size = Vector2(400, 70)
 	reroll_btn.focus_mode = Control.FOCUS_NONE
+	reroll_btn.add_theme_font_override("font", Art.BOLD_FONT)
 	reroll_btn.add_theme_font_size_override("font_size", 28)
 	var rb := StyleBoxFlat.new()
 	rb.bg_color = Color("1f0f3a")

@@ -8,6 +8,10 @@ const YELLOW := Color("fff44f")
 const DARK := Color("1a0b2e")
 const WHITE := Color("f4f0ff")
 
+# Шрифты: Exo 2 — основной (задан в настройках проекта), Press Start 2P — экранное меню плеера (OSD).
+const OSD_FONT := preload("res://assets/fonts/PressStart2P.ttf")
+const BOLD_FONT := preload("res://assets/fonts/ui_bold.tres")
+
 
 static func shadow(ci: CanvasItem, r: float, alpha: float = 0.35, y: float = 8.0) -> void:
 	ci.draw_set_transform(Vector2(0, y), 0.0, Vector2(1.0, 0.45))

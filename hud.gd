@@ -3,6 +3,7 @@ extends CanvasLayer
 ## сборка внизу экрана и крупные сообщения по центру.
 
 const UpgradesScript := preload("res://upgrades.gd")
+const Art := preload("res://art.gd")
 const UpgradeIconAtlas := preload("res://assets/upgrade_icons.svg")
 
 const MAX_LOADOUT_ICONS := 11
@@ -28,8 +29,10 @@ func _ready() -> void:
 
 	rec_label = Label.new()
 	rec_label.position = Vector2(62, 24)
-	rec_label.size = Vector2(620, 46)
-	rec_label.add_theme_font_size_override("font_size", 36)
+	rec_label.size = Vector2(640, 46)
+	rec_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	rec_label.add_theme_font_override("font", Art.OSD_FONT)
+	rec_label.add_theme_font_size_override("font_size", 24)
 	add_child(rec_label)
 
 	genre_label = Label.new()
@@ -43,7 +46,8 @@ func _ready() -> void:
 	level_label.position = Vector2(560, 76)
 	level_label.size = Vector2(130, 40)
 	level_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	level_label.add_theme_font_size_override("font_size", 28)
+	level_label.add_theme_font_override("font", Art.OSD_FONT)
+	level_label.add_theme_font_size_override("font_size", 24)
 	level_label.add_theme_color_override("font_color", Color("00f0ff"))
 	add_child(level_label)
 
@@ -70,7 +74,10 @@ func _ready() -> void:
 	msg.size = Vector2(720, 400)
 	msg.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	msg.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	msg.add_theme_font_size_override("font_size", 52)
+	msg.add_theme_font_override("font", Art.BOLD_FONT)
+	msg.add_theme_font_size_override("font_size", 48)
+	msg.add_theme_color_override("font_outline_color", Art.DARK)
+	msg.add_theme_constant_override("outline_size", 10)
 	msg.add_theme_color_override("font_color", Color("00f0ff"))
 	add_child(msg)
 
@@ -136,10 +143,13 @@ func _loadout_card(id: String, level: int) -> Control:
 	card.add_child(icon)
 	var level_badge := Label.new()
 	level_badge.text = str(level)
-	level_badge.position = Vector2(36, 42)
-	level_badge.size = Vector2(16, 20)
+	level_badge.position = Vector2(34, 42)
+	level_badge.size = Vector2(20, 20)
 	level_badge.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	level_badge.add_theme_font_size_override("font_size", 18)
-	level_badge.add_theme_color_override("font_color", Color("fff44f"))
+	level_badge.add_theme_font_override("font", Art.OSD_FONT)
+	level_badge.add_theme_font_size_override("font_size", 16)
+	level_badge.add_theme_color_override("font_color", Art.YELLOW)
+	level_badge.add_theme_color_override("font_outline_color", Art.DARK)
+	level_badge.add_theme_constant_override("outline_size", 6)
 	card.add_child(level_badge)
 	return card
