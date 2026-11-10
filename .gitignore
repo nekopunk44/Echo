@@ -1,2 +1,4 @@
-﻿.godot/
+.godot/
 .DS_Store
+build/
+*.apk
