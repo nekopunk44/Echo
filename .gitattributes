@@ -1,0 +1,5 @@
+# Godot и gdformat пишут LF; без этого Windows-копия смешивает CRLF и LF.
+* text=auto eol=lf
+
+*.png binary
+*.keystore binary
