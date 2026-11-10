@@ -21,6 +21,7 @@ const UpgradesScript := preload("res://upgrades.gd")
 const LevelUpScript := preload("res://levelup_ui.gd")
 const RunMenuScript := preload("res://run_menu.gd")
 const HudScript := preload("res://hud.gd")
+const VhsScript := preload("res://vhs.gd")
 const DebugKeysScript := preload("res://debug_keys.gd")
 
 const ROUND_TIME := 30.0  # для финальной версии: 90.0
@@ -77,6 +78,7 @@ var player: CharacterBody2D
 var picker
 var run_menu
 var hud
+var vhs
 var genre := 0
 var forced_genre := -1
 var boss_spawned := false
@@ -86,6 +88,8 @@ var boss_defeated := false
 func _ready() -> void:
 	randomize()
 	RenderingServer.set_default_clear_color(Color("1a0b2e"))
+	vhs = VhsScript.new()
+	add_child(vhs)
 	hud = HudScript.new()
 	add_child(hud)
 	picker = LevelUpScript.new()
@@ -229,6 +233,7 @@ func finish_take() -> void:
 	state = State.BANKING
 	bank_timer = 3.0
 	player.active = false
+	vhs.pulse(0.4)
 	hud.msg.text = "ПЕРЕМОТКА\n\nОСКОЛКИ ВОЗВРАЩАЮТСЯ К ТЕБЕ"
 	for p in get_tree().get_nodes_in_group("pickups"):
 		p.target = player
@@ -255,6 +260,7 @@ func _is_boss_take() -> bool:
 
 func boss_died() -> void:
 	boss_defeated = true
+	vhs.pulse(0.8)
 	if run_mode == "campaign" and take == CAMPAIGN_TAKES:
 		for p in get_tree().get_nodes_in_group("pickups"):
 			add_xp(p.value)
@@ -313,12 +319,14 @@ func player_died() -> void:
 		invuln = 1.5
 		_shockwave(player.position, 240.0)
 		spawn_burst(player.position, Color("00f0ff"))
+		vhs.pulse(0.7)
 		return
 	state = State.DEAD
 	dead_time = 0.0
 	player.active = false
 	spawn_burst(player.position, Color("f4f0ff"))
 	player.visible = false
+	vhs.pulse(1.0)
 	hud.msg.text = (
 		"EJECT\n\nкассета: %s\nубито: %d  |  уровень: %d  |  дубль: %d\n\nтап/клавиша — начать заново\nEsc — главное меню"
 		% [GENRES[genre]["name"], kills, level, take]
@@ -462,6 +470,7 @@ func _spawn_enemy(force_kind: int = -1) -> void:
 		e.kind = kinds[randi() % kinds.size()]
 	if e.kind == 6:
 		boss_spawned = true
+		vhs.pulse(0.6)
 	e.position = p
 	var difficulty_mult := (1.0 + 0.06 * (take - 1)) * float(ACT_RULES[act_index]["health"])
 	e.hp = (2.0 + (take - 1)) * difficulty_mult
@@ -804,6 +813,7 @@ func _process(_delta: float) -> void:
 	hud.show_take(take, take_time, CAMPAIGN_TAKES, run_mode == "endless", state == State.PLAY)
 	hud.show_level(level, xp, xp_need(level))
 	hud.refresh_loadout(loadout, armor_charges)
+	vhs.rewind_hold = state == State.REWIND
 	if is_instance_valid(player):
 		var blink := invuln > 0.0 and fmod(invuln, 0.2) < 0.1
 		player.modulate.a = 0.4 if blink else 1.0

@@ -19,6 +19,7 @@ var _loadout_signature := ""
 
 
 func _ready() -> void:
+	layer = 2  # над VHS-слоем: надписи плеера остаются чёткими
 	rec_dot = ColorRect.new()
 	rec_dot.color = Color("ff2e2e")
 	rec_dot.position = Vector2(30, 40)
