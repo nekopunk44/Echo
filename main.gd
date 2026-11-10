@@ -1,6 +1,8 @@
 extends Node2D
 ## Главная сцена: цикл дублей, спавн врагов, опыт и выбор плёнок, HUD в стиле VHS.
 
+enum State { MENU, PLAY, REWIND, DEAD, PICK, BANKING, VICTORY }
+
 const PlayerScript := preload("res://player.gd")
 const GhostScript := preload("res://ghost.gd")
 const EnemyScript := preload("res://enemy.gd")
@@ -18,7 +20,8 @@ const LoadoutScript := preload("res://loadout.gd")
 const UpgradesScript := preload("res://upgrades.gd")
 const LevelUpScript := preload("res://levelup_ui.gd")
 const RunMenuScript := preload("res://run_menu.gd")
-const UpgradeIconAtlas := preload("res://assets/upgrade_icons.svg")
+const HudScript := preload("res://hud.gd")
+const DebugKeysScript := preload("res://debug_keys.gd")
 
 const ROUND_TIME := 30.0  # для финальной версии: 90.0
 const ARENA := Vector2(720, 1280)
@@ -26,7 +29,6 @@ const GHOST_DMG := 0.6  # урон копии относительно игро�
 const CAMPAIGN_TAKES := 12
 const BOSS_EVERY := 3
 const MAX_ACTIVE_GHOSTS := 5
-const MAX_LOADOUT_ICONS := 11
 
 # Кассеты-жанры: какие враги идут в каком жанре (kind см. enemy.gd). Пока выбирается случайно на старте забега.
 const GENRES := [
@@ -41,8 +43,6 @@ const ACT_RULES := [
 	{"name": "ГОРЯЩАЯ ПЛЁНКА · ВРАГИ НА 15% БЫСТРЕЕ", "spawn": 1.0, "speed": 1.15, "health": 1.0},
 	{"name": "СРЫВ СИГНАЛА · ВРАГИ КРЕПЧЕ И ЧАЩЕ", "spawn": 0.85, "speed": 1.0, "health": 1.15},
 ]
-
-enum State { MENU, PLAY, REWIND, DEAD, PICK, BANKING, VICTORY }
 
 var state := State.MENU
 var take := 1
@@ -66,34 +66,28 @@ var rerolls_left := 1
 var armor_charges := 0
 var invuln := 0.0
 var picks_no_weapon := 0
-var debug_montage_i := 0
 var bonus_rerolls := 0
 var run_mode := "campaign"
 var run_genre := 0
 var endless_unlocked := false
 var act_index := 0
+var progress_path := "user://echo.cfg"  # дымовой тест подменяет, чтобы не трогать прогресс игрока
 
 var player: CharacterBody2D
 var picker
 var run_menu
-var hud_rec: Label
-var hud_msg: Label
-var hud_genre: Label
-var hud_level: Label
-var hud_loadout: HBoxContainer
-var rec_dot: ColorRect
-var xp_fill: ColorRect
+var hud
 var genre := 0
 var forced_genre := -1
 var boss_spawned := false
 var boss_defeated := false
-var loadout_hud_signature := ""
 
 
 func _ready() -> void:
 	randomize()
 	RenderingServer.set_default_clear_color(Color("1a0b2e"))
-	_build_hud()
+	hud = HudScript.new()
+	add_child(hud)
 	picker = LevelUpScript.new()
 	add_child(picker)
 	picker.picked.connect(_on_picked)
@@ -105,9 +99,13 @@ func _ready() -> void:
 	run_menu.endless_continue_requested.connect(_on_endless_continue_requested)
 	run_menu.menu_requested.connect(_on_menu_requested)
 	var progress := ConfigFile.new()
-	if progress.load("user://echo.cfg") == OK:
+	if progress.load(progress_path) == OK:
 		endless_unlocked = bool(progress.get_value("progress", "endless_unlocked", false))
 	run_menu.show_menu(Recorder.hero, endless_unlocked)
+	if OS.is_debug_build():
+		var keys := DebugKeysScript.new()
+		keys.main = self
+		add_child(keys)
 
 
 func is_playing() -> bool:
@@ -179,7 +177,7 @@ func _start_run(mode: String = "campaign") -> void:
 	kills = 0
 	run_genre = forced_genre if forced_genre >= 0 else randi() % GENRES.size()
 	genre = run_genre
-	loadout_hud_signature = ""
+	hud.reset_loadout()
 	_start_take()
 
 
@@ -209,11 +207,11 @@ func _start_take() -> void:
 	genre = (run_genre + int((take - 1) / BOSS_EVERY)) % GENRES.size()
 	var act := act_index + 1
 	var boss_tag := "  ·  БОСС" if _is_boss_take() else ""
-	hud_genre.text = (
+	hud.genre_label.text = (
 		"КАССЕТА: %s  ·  ЭТАП %d/4%s\n%s" % [GENRES[genre]["name"], act, boss_tag, ACT_RULES[act_index]["name"]]
 	)
 	state = State.PLAY
-	hud_msg.text = ""
+	hud.msg.text = ""
 	armor_charges = _armor_max()
 	invuln = 0.0
 	rerolls_left = 1
@@ -227,11 +225,11 @@ func _clear_world() -> void:
 			n.queue_free()
 
 
-func _finish_take() -> void:
+func finish_take() -> void:
 	state = State.BANKING
 	bank_timer = 3.0
 	player.active = false
-	hud_msg.text = "ПЕРЕМОТКА\n\nОСКОЛКИ ВОЗВРАЩАЮТСЯ К ТЕБЕ"
+	hud.msg.text = "ПЕРЕМОТКА\n\nОСКОЛКИ ВОЗВРАЩАЮТСЯ К ТЕБЕ"
 	for p in get_tree().get_nodes_in_group("pickups"):
 		p.target = player
 		p.attracted = true
@@ -248,7 +246,7 @@ func _complete_take() -> void:
 	rewind_timer = 0.8
 	player.active = false
 	_clear_world()
-	hud_msg.text = "REWIND"
+	hud.msg.text = "REWIND"
 
 
 func _is_boss_take() -> bool:
@@ -266,10 +264,18 @@ func boss_died() -> void:
 		endless_unlocked = true
 		var progress := ConfigFile.new()
 		progress.set_value("progress", "endless_unlocked", true)
-		progress.save("user://echo.cfg")
+		progress.save(progress_path)
 		run_menu.show_victory(kills, level)
 	elif state == State.PLAY:
-		hud_msg.text = ""
+		hud.msg.text = ""
+
+
+func restart_run() -> void:
+	_start_run(run_mode)
+
+
+func spawn_boss() -> void:
+	_spawn_enemy(6)
 
 
 func _on_campaign_requested(hero: String) -> void:
@@ -313,7 +319,7 @@ func player_died() -> void:
 	player.active = false
 	spawn_burst(player.position, Color("f4f0ff"))
 	player.visible = false
-	hud_msg.text = (
+	hud.msg.text = (
 		"EJECT\n\nкассета: %s\nубито: %d  |  уровень: %d  |  дубль: %d\n\nтап/клавиша — начать заново\nEsc — главное меню"
 		% [GENRES[genre]["name"], kills, level, take]
 	)
@@ -417,9 +423,9 @@ func _physics_process(delta: float) -> void:
 				_spawn_enemy()
 			if take_time >= ROUND_TIME:
 				if not _is_boss_take() or boss_defeated:
-					_finish_take()
-				elif hud_msg.text.is_empty():
-					hud_msg.text = "ЦЕНЗОР НЕ ПОВЕРЖЕН\nЗАВЕРШИ ЭТОТ ДУБЛЬ, ЧТОБЫ ПЕРЕМАТАТЬ ПЛЁНКУ"
+					finish_take()
+				elif hud.msg.text.is_empty():
+					hud.msg.text = "ЦЕНЗОР НЕ ПОВЕРЖЕН\nЗАВЕРШИ ЭТОТ ДУБЛЬ, ЧТОБЫ ПЕРЕМАТАТЬ ПЛЁНКУ"
 		State.REWIND:
 			rewind_timer -= delta
 			if rewind_timer <= 0.0:
@@ -791,123 +797,13 @@ func _drop(pos: Vector2, value: int) -> void:
 	add_child(p)
 
 
-# ---------- HUD ----------
-
-
-func _build_hud() -> void:
-	var layer := CanvasLayer.new()
-	add_child(layer)
-
-	rec_dot = ColorRect.new()
-	rec_dot.color = Color("ff2e2e")
-	rec_dot.position = Vector2(30, 40)
-	rec_dot.size = Vector2(20, 20)
-	layer.add_child(rec_dot)
-
-	hud_rec = Label.new()
-	hud_rec.position = Vector2(62, 24)
-	hud_rec.size = Vector2(620, 46)
-	hud_rec.add_theme_font_size_override("font_size", 36)
-	layer.add_child(hud_rec)
-
-	hud_genre = Label.new()
-	hud_genre.position = Vector2(30, 76)
-	hud_genre.size = Vector2(520, 64)
-	hud_genre.add_theme_font_size_override("font_size", 20)
-	hud_genre.add_theme_color_override("font_color", Color("ff2e88"))
-	layer.add_child(hud_genre)
-
-	hud_level = Label.new()
-	hud_level.position = Vector2(560, 76)
-	hud_level.size = Vector2(130, 40)
-	hud_level.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	hud_level.add_theme_font_size_override("font_size", 28)
-	hud_level.add_theme_color_override("font_color", Color("00f0ff"))
-	layer.add_child(hud_level)
-
-	var xp_bg := ColorRect.new()
-	xp_bg.color = Color(1, 1, 1, 0.15)
-	xp_bg.position = Vector2(30, 142)
-	xp_bg.size = Vector2(660, 14)
-	layer.add_child(xp_bg)
-	xp_fill = ColorRect.new()
-	xp_fill.color = Color("00f0ff")
-	xp_fill.position = Vector2(30, 142)
-	xp_fill.size = Vector2(0, 14)
-	layer.add_child(xp_fill)
-
-	hud_loadout = HBoxContainer.new()
-	hud_loadout.position = Vector2(30, 1170)
-	hud_loadout.size = Vector2(660, 82)
-	hud_loadout.add_theme_constant_override("separation", 3)
-	hud_loadout.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	layer.add_child(hud_loadout)
-
-	hud_msg = Label.new()
-	hud_msg.position = Vector2(0, 460)
-	hud_msg.size = Vector2(720, 400)
-	hud_msg.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	hud_msg.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	hud_msg.add_theme_font_size_override("font_size", 52)
-	hud_msg.add_theme_color_override("font_color", Color("00f0ff"))
-	layer.add_child(hud_msg)
-
-
-func _refresh_loadout_hud() -> void:
-	if loadout == null:
-		return
-	var ids: Array = loadout.levels.keys()
-	ids.sort()
-	var signature := "%d|" % armor_charges
-	for id in ids:
-		signature += "%s:%d;" % [id, loadout.levels[id]]
-	if signature == loadout_hud_signature:
-		return
-	loadout_hud_signature = signature
-	for child in hud_loadout.get_children():
-		child.queue_free()
-	for i in mini(ids.size(), MAX_LOADOUT_ICONS):
-		var id: String = ids[i]
-		var def: Dictionary = UpgradesScript.CATALOG[id]
-		var icon_index := int(def.get("icon", 21))
-		var card := Control.new()
-		card.custom_minimum_size = Vector2(56, 68)
-		card.size = Vector2(56, 68)
-		var back := ColorRect.new()
-		back.position = Vector2(2, 2)
-		back.size = Vector2(52, 58)
-		back.color = Color(0.08, 0.04, 0.16, 0.82)
-		card.add_child(back)
-		var icon := TextureRect.new()
-		var atlas_tex := AtlasTexture.new()
-		atlas_tex.atlas = UpgradeIconAtlas
-		atlas_tex.region = Rect2((icon_index % 6) * 128, int(icon_index / 6) * 128, 128, 128)
-		icon.texture = atlas_tex
-		icon.position = Vector2(5, 5)
-		icon.size = Vector2(44, 44)
-		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		icon.tooltip_text = "%s · ур. %d" % [def["name"], loadout.level(id)]
-		card.add_child(icon)
-		var level_badge := Label.new()
-		level_badge.text = str(loadout.level(id))
-		level_badge.position = Vector2(36, 42)
-		level_badge.size = Vector2(16, 20)
-		level_badge.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		level_badge.add_theme_font_size_override("font_size", 18)
-		level_badge.add_theme_color_override("font_color", Color("fff44f"))
-		card.add_child(level_badge)
-		hud_loadout.add_child(card)
+# ---------- кадр ----------
 
 
 func _process(_delta: float) -> void:
-	var t := int(take_time)
-	var take_text := "ДУБЛЬ %02d/%d" % [take, CAMPAIGN_TAKES] if run_mode == "campaign" else "ДУБЛЬ %02d ∞" % take
-	hud_rec.text = "REC  %02d:%02d   %s" % [t / 60, t % 60, take_text]
-	rec_dot.visible = state == State.PLAY and fmod(Time.get_ticks_msec() / 1000.0, 1.0) < 0.5
-	hud_level.text = "УР. %d" % level
-	xp_fill.size.x = 660.0 * clampf(float(xp) / float(xp_need(level)), 0.0, 1.0)
-	_refresh_loadout_hud()
+	hud.show_take(take, take_time, CAMPAIGN_TAKES, run_mode == "endless", state == State.PLAY)
+	hud.show_level(level, xp, xp_need(level))
+	hud.refresh_loadout(loadout, armor_charges)
 	if is_instance_valid(player):
 		var blink := invuln > 0.0 and fmod(invuln, 0.2) < 0.1
 		player.modulate.a = 0.4 if blink else 1.0
@@ -927,78 +823,17 @@ func _draw() -> void:
 				draw_line(player.position, g.position, Color(0.0, 0.94, 1.0, 0.35), 3.0)
 
 
-# ---------- ввод: рестарт после смерти + отладочные клавиши (только ПК) ----------
-# 1-6: герой   G: следующий жанр   B: вызвать Цензора   X: сразу получить уровень   M: подготовить пару для Монтажа   T: сразу закончить дубль (появится копия)
+# ---------- ввод ----------
 
 
-func _debug_montage() -> void:
-	var pairs := [["cassette", "magnet"], ["bat", "flash"], ["remote", "flashlight"], ["pricetags", "popgun"]]
-	var pair: Array = pairs[debug_montage_i % pairs.size()]
-	debug_montage_i += 1
-	loadout.levels.clear()
-	for id in pair:
-		loadout.levels[id] = 3
-	pending.append({"key": "%d_dbg%d" % [run_seed, debug_montage_i], "title": "ТЕСТ МОНТАЖА"})
-
-
-func _set_hero(hero_name: String) -> void:
-	Recorder.hero = hero_name
-	_start_run(run_mode)
-
-
+## После смерти: тап или любая клавиша — заново, Esc — в главное меню.
 func _input(event: InputEvent) -> void:
-	if event is InputEventKey and event.pressed and not event.echo:
-		if event.keycode == KEY_ESCAPE and state == State.DEAD:
-			_on_menu_requested()
-			return
-		match event.keycode:
-			KEY_1:
-				_set_hero("clerk")
-				return
-			KEY_2:
-				_set_hero("courier")
-				return
-			KEY_3:
-				_set_hero("guard")
-				return
-			KEY_4:
-				_set_hero("projectionist")
-				return
-			KEY_5:
-				_set_hero("popcorn")
-				return
-			KEY_6:
-				_set_hero("critic")
-				return
-			KEY_G:
-				forced_genre = (genre + 1) % GENRES.size()
-				_start_run(run_mode)
-				return
-			KEY_B:
-				if state == State.PLAY:
-					_spawn_enemy(6)
-				return
-			KEY_T:
-				if state == State.PLAY:
-					_finish_take()
-				return
-			KEY_M:
-				if state == State.PLAY:
-					_debug_montage()
-				return
-			KEY_X:
-				if state == State.PLAY:
-					add_xp(xp_need(level))
-				return
-
-	if state != State.DEAD or dead_time < 0.4:
+	if state != State.DEAD or not event.is_pressed() or event.is_echo():
 		return
-	var pressed := false
-	if event is InputEventScreenTouch and event.pressed:
-		pressed = true
-	elif event is InputEventMouseButton and event.pressed:
-		pressed = true
-	elif event is InputEventKey and event.pressed:
-		pressed = true
-	if pressed:
+	if event is InputEventKey and event.keycode == KEY_ESCAPE:
+		_on_menu_requested()
+	elif (
+		dead_time >= 0.4
+		and (event is InputEventKey or event is InputEventMouseButton or event is InputEventScreenTouch)
+	):
 		_start_run(run_mode)
