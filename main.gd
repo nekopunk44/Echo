@@ -22,6 +22,7 @@ const LevelUpScript := preload("res://levelup_ui.gd")
 const RunMenuScript := preload("res://run_menu.gd")
 const HudScript := preload("res://hud.gd")
 const VhsScript := preload("res://vhs.gd")
+const JuiceScript := preload("res://juice.gd")
 const DebugKeysScript := preload("res://debug_keys.gd")
 
 const ROUND_TIME := 30.0  # для финальной версии: 90.0
@@ -79,6 +80,7 @@ var picker
 var run_menu
 var hud
 var vhs
+var cam
 var genre := 0
 var forced_genre := -1
 var boss_spawned := false
@@ -88,6 +90,8 @@ var boss_defeated := false
 func _ready() -> void:
 	randomize()
 	RenderingServer.set_default_clear_color(Color("1a0b2e"))
+	cam = JuiceScript.new()
+	add_child(cam)
 	vhs = VhsScript.new()
 	add_child(vhs)
 	hud = HudScript.new()
@@ -219,6 +223,7 @@ func _start_take() -> void:
 	armor_charges = _armor_max()
 	invuln = 0.0
 	rerolls_left = 1
+	cam.reset()
 	if take >= 2:  # бесплатная плёнка в начале каждого нового дубля
 		pending.append({"key": "%d_t%d" % [run_seed, take], "title": "СВЕЖАЯ ПЛЁНКА"})
 
@@ -261,6 +266,8 @@ func _is_boss_take() -> bool:
 func boss_died() -> void:
 	boss_defeated = true
 	vhs.pulse(0.8)
+	cam.shake(1.0)
+	cam.hitstop(0.18)
 	if run_mode == "campaign" and take == CAMPAIGN_TAKES:
 		for p in get_tree().get_nodes_in_group("pickups"):
 			add_xp(p.value)
@@ -307,6 +314,7 @@ func _on_menu_requested() -> void:
 	if is_instance_valid(player):
 		player.queue_free()
 	Recorder.reset()
+	cam.reset()
 	state = State.MENU
 	run_menu.show_menu(Recorder.hero, endless_unlocked)
 
@@ -320,6 +328,8 @@ func player_died() -> void:
 		_shockwave(player.position, 240.0)
 		spawn_burst(player.position, Color("00f0ff"))
 		vhs.pulse(0.7)
+		cam.shake(0.5)
+		cam.hitstop(0.06)
 		return
 	state = State.DEAD
 	dead_time = 0.0
@@ -327,6 +337,8 @@ func player_died() -> void:
 	spawn_burst(player.position, Color("f4f0ff"))
 	player.visible = false
 	vhs.pulse(1.0)
+	cam.shake(0.8)
+	cam.hitstop(0.12)
 	hud.msg.text = (
 		"EJECT\n\nкассета: %s\nубито: %d  |  уровень: %d  |  дубль: %d\n\nтап/клавиша — начать заново\nEsc — главное меню"
 		% [GENRES[genre]["name"], kills, level, take]
@@ -356,6 +368,7 @@ func _open_picker() -> void:
 	cur_pick = pending.pop_front()
 	reroll_idx = 0
 	state = State.PICK
+	cam.reset()  # на паузе время идёт обычным ходом, тряска не застывает
 	player.reset_input()
 	get_tree().paused = true
 	_roll_choices()
@@ -471,6 +484,7 @@ func _spawn_enemy(force_kind: int = -1) -> void:
 	if e.kind == 6:
 		boss_spawned = true
 		vhs.pulse(0.6)
+		cam.shake(0.35)
 	e.position = p
 	var difficulty_mult := (1.0 + 0.06 * (take - 1)) * float(ACT_RULES[act_index]["health"])
 	e.hp = (2.0 + (take - 1)) * difficulty_mult

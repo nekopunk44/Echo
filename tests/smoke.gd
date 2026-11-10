@@ -111,7 +111,7 @@ func _check_death() -> void:
 	await _frames(30)
 	_kill_player()
 	_expect(main.state == main.State.DEAD, "игрок не погиб")
-	await _frames(40)
+	await _frames(60)  # хитстоп смерти + 0.4 с защиты от случайного тапа
 	await _press(KEY_SPACE)
 	_expect(main.state == main.State.PLAY, "после смерти забег не начался заново")
 	await _frames(30)
