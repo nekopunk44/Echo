@@ -17,8 +17,7 @@ static func shadow(ci: CanvasItem, r: float, alpha: float = 0.35, y: float = 8.0
 
 ## Спрайт по центру узла (смотрит вправо в исходнике). flip = зеркалить влево.
 ## bob (-1..1) даёт шаг: подпрыгивание, лёгкий наклон и сжатие.
-static func sprite(ci: CanvasItem, tex: Texture2D, h: float, flip: bool, bob: float,
-		tint: Color, ofs: Vector2) -> void:
+static func sprite(ci: CanvasItem, tex: Texture2D, h: float, flip: bool, bob: float, tint: Color, ofs: Vector2) -> void:
 	var w := h * tex.get_width() / tex.get_height()
 	var sq := absf(bob) * 0.05
 	var sx := (-1.0 if flip else 1.0) * (1.0 + sq)
@@ -28,8 +27,9 @@ static func sprite(ci: CanvasItem, tex: Texture2D, h: float, flip: bool, bob: fl
 
 
 ## Кадр из ленты одинаковых ячеек (frames штук подряд по горизонтали).
-static func sprite_frame(ci: CanvasItem, tex: Texture2D, frames: int, frame: int, h: float,
-		flip: bool, tint: Color, ofs: Vector2) -> void:
+static func sprite_frame(
+	ci: CanvasItem, tex: Texture2D, frames: int, frame: int, h: float, flip: bool, tint: Color, ofs: Vector2
+) -> void:
 	var cw := tex.get_width() / float(frames)
 	var chh := float(tex.get_height())
 	var w := h * cw / chh
@@ -46,8 +46,17 @@ static func _closed(ci: CanvasItem, pts: PackedVector2Array, col: Color, w: floa
 
 ## Клерк с камерой на плече (вид сверху). angle = куда смотрит (0 = вправо).
 ## Игрок рисуется "чисто" с яркой обводкой, копии — этой же функцией, но в цветных слоях.
-static func clerk(ci: CanvasItem, angle: float, body: Color, line: Color, accent: Color,
-		bob: float, rec_on: bool, flash: float, ofs: Vector2) -> void:
+static func clerk(
+	ci: CanvasItem,
+	angle: float,
+	body: Color,
+	line: Color,
+	accent: Color,
+	bob: float,
+	rec_on: bool,
+	flash: float,
+	ofs: Vector2
+) -> void:
 	ci.draw_set_transform(ofs, angle, Vector2.ONE)
 	var sway := 1.0 + bob * 0.08
 
@@ -121,8 +130,7 @@ static func phantom(ci: CanvasItem, t: float, look: Vector2, col: Color) -> void
 static func drone(ci: CanvasItem, t: float, col: Color) -> void:
 	shadow(ci, 14.0)
 	ci.draw_set_transform(Vector2(0, sin(t * 5.0) * 2.0 - 3.0), 0.0, Vector2.ONE)
-	ci.draw_colored_polygon(PackedVector2Array([
-		Vector2(0, -14), Vector2(14, 0), Vector2(0, 14), Vector2(-14, 0)]), col)
+	ci.draw_colored_polygon(PackedVector2Array([Vector2(0, -14), Vector2(14, 0), Vector2(0, 14), Vector2(-14, 0)]), col)
 	for sx in [-1.0, 1.0]:
 		for sy in [-1.0, 1.0]:
 			var c := Vector2(sx * 15.0, sy * 15.0)
