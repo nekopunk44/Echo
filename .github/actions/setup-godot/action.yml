@@ -1,0 +1,33 @@
+name: Godot
+description: Скачивает редактор Godot для Linux (работает и без экрана), кэширует его и кладёт в PATH как `godot`.
+
+inputs:
+  version:
+    description: Версия Godot, например 4.7.2
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Кэш редактора
+      id: cache
+      uses: actions/cache@v4
+      with:
+        path: ~/godot
+        key: godot-${{ inputs.version }}-linux
+
+    - name: Скачать редактор
+      if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        mkdir -p ~/godot
+        curl -fsSL -o /tmp/godot.zip \
+          "https://github.com/godotengine/godot/releases/download/${{ inputs.version }}-stable/Godot_v${{ inputs.version }}-stable_linux.x86_64.zip"
+        unzip -q /tmp/godot.zip -d ~/godot
+        mv ~/godot/Godot_v*_linux.x86_64 ~/godot/godot
+
+    - name: В PATH
+      shell: bash
+      run: |
+        echo "$HOME/godot" >> "$GITHUB_PATH"
+        "$HOME/godot/godot" --headless --version
