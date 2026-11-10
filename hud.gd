@@ -122,15 +122,16 @@ func _loadout_card(id: String, level: int) -> Control:
 	back.size = Vector2(52, 58)
 	back.color = Color(0.08, 0.04, 0.16, 0.82)
 	card.add_child(back)
+	# Режим растяжения задаётся до размера: иначе иконка растёт до исходных 128 px атласа.
 	var icon := TextureRect.new()
+	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	icon.position = Vector2(6, 5)
+	icon.size = Vector2(44, 44)
 	var atlas_tex := AtlasTexture.new()
 	atlas_tex.atlas = UpgradeIconAtlas
 	atlas_tex.region = Rect2((icon_index % 6) * 128, int(icon_index / 6) * 128, 128, 128)
 	icon.texture = atlas_tex
-	icon.position = Vector2(5, 5)
-	icon.size = Vector2(44, 44)
-	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	icon.tooltip_text = "%s · ур. %d" % [def["name"], level]
 	card.add_child(icon)
 	var level_badge := Label.new()
