@@ -221,7 +221,8 @@ func set_choices(choice_ids: Array, loadout) -> void:
 			var slot_count: int = int(loadout.count_kind(kind))
 			var slot_max := Upgrades.MAX_WEAPON_SLOTS if kind == "weapon" else Upgrades.MAX_FILM_SLOTS
 			var category := "ОРУЖИЕ" if kind == "weapon" else ("ЭХО-ПЛЁНКА" if def.get("echo", false) else "ПЛЁНКА")
-			lvls[i].text = "НОВОЕ %s  ·  СЛОТ %d/%d" % [category, slot_count + 1, slot_max]
+			var fresh := "НОВОЕ" if kind == "weapon" else "НОВАЯ"  # оружие — оно, плёнка — она
+			lvls[i].text = "%s %s  ·  СЛОТ %d/%d" % [fresh, category, slot_count + 1, slot_max]
 		else:
 			var category := "ОРУЖИЕ" if kind == "weapon" else ("ЭХО-ПЛЁНКА" if def.get("echo", false) else "ПЛЁНКА")
 			lvls[i].text = "%s  ·  УР. %d → %d / %d" % [category, lvl, lvl + 1, def["max"]]
