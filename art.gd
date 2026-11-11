@@ -13,6 +13,12 @@ const OSD_FONT := preload("res://assets/fonts/PressStart2P.ttf")
 const BOLD_FONT := preload("res://assets/fonts/ui_bold.tres")
 
 
+## Телефон ли это (Android, iOS). DisplayServer.is_touchscreen_available() не годится: проект включает эмуляцию
+## касаний мышью, и на ПК он тоже даёт true, а подсказки про клавиши нужны именно там.
+static func is_phone() -> bool:
+	return OS.has_feature("mobile")
+
+
 static func shadow(ci: CanvasItem, r: float, alpha: float = 0.35, y: float = 8.0) -> void:
 	ci.draw_set_transform(Vector2(0, y), 0.0, Vector2(1.0, 0.45))
 	ci.draw_circle(Vector2.ZERO, r, Color(0, 0, 0, alpha))

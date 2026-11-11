@@ -16,6 +16,10 @@ const LENS := {  # где на спрайте объектив (для вспы�
 const WALK_FRAMES := 8
 const IDLE_FRAME := 2  # кадр "ноги вместе"
 const WALK_FPS := 18.0  # скорость анимации при полном ходе
+# Мигание неуязвимости (откат, броня): белый — голубой. Яркость сверх 1 добавляет свечения; героя видно всегда,
+# а полупрозрачный терялся на фоне перемотки VHS.
+const INVULN_TINT := Color(0.55, 1.2, 1.5)
+const INVULN_RING_R := 38.0  # кольцо у ног, пока идёт неуязвимость
 
 var walk_tex: Texture2D  # лента кадров ходьбы
 var tex: Texture2D  # одиночный спрайт (запасной)
@@ -128,7 +132,19 @@ func _muzzle_flash() -> void:
 		draw_circle(Vector2(lens.x * dir + 10.0 * dir, lens.y), 10.0 * flash_t / 0.08, Color(1.0, 0.96, 0.31, 0.9))
 
 
+## Голубое кольцо у ног: пока оно есть, героя не убить. Держится всю неуязвимость, а не только в фазе мигания.
+func _draw_invuln_ring() -> void:
+	if main.invuln <= 0.0:
+		return
+	var pulse := 0.5 + 0.5 * sin(Time.get_ticks_msec() / 1000.0 * 9.0)
+	draw_set_transform(Vector2(0, SPRITE_H / 2.0 - 4.0), 0.0, Vector2(1.0, 0.45))  # эллипс на земле, как тень
+	draw_circle(Vector2.ZERO, INVULN_RING_R, Color(Art.CYAN, 0.18))
+	draw_arc(Vector2.ZERO, INVULN_RING_R, 0.0, TAU, 40, Color(Art.CYAN, 0.65 + 0.35 * pulse), 8.0)
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+
 func _draw() -> void:
+	_draw_invuln_ring()
 	if walk_tex:
 		Art.shadow(self, 24.0, 0.35, SPRITE_H / 2.0 - 4.0)
 		Art.sprite_frame(self, walk_tex, WALK_FRAMES, frame, SPRITE_H, flip, Color.WHITE, Vector2.ZERO)

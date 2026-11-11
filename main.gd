@@ -1,7 +1,8 @@
 extends Node2D
 ## Главная сцена: цикл дублей, спавн врагов, опыт и выбор плёнок, HUD в стиле VHS.
 
-enum State { MENU, PLAY, REWIND, DEAD, PICK, BANKING, VICTORY }
+# LAST_CHANCE — экран выбора после смерти с жетоном (REWIND или EJECT); REWIND — пауза между дублями
+enum State { MENU, PLAY, REWIND, DEAD, PICK, BANKING, VICTORY, LAST_CHANCE }
 
 const PlayerScript := preload("res://player.gd")
 const GhostScript := preload("res://ghost.gd")
@@ -25,6 +26,8 @@ const VhsScript := preload("res://vhs.gd")
 const JuiceScript := preload("res://juice.gd")
 const BackdropScript := preload("res://backdrop.gd")
 const DebugKeysScript := preload("res://debug_keys.gd")
+const RewindScript := preload("res://rewind.gd")
+const RewindUiScript := preload("res://rewind_ui.gd")
 
 const ROUND_TIME := 30.0  # для финальной версии: 90.0
 const ARENA := Vector2(720, 1280)
@@ -68,6 +71,8 @@ var reroll_idx := 0
 var rerolls_left := 1
 var armor_charges := 0
 var invuln := 0.0
+var rewind_tokens := 0  # жетоны перемотки на руках (правила — в rewind.gd)
+var rewinds_used := 0  # откатов за забег, для баланса: показывается на экране EJECT
 var picks_no_weapon := 0
 var bonus_rerolls := 0
 var run_mode := "campaign"
@@ -79,6 +84,8 @@ var progress_path := "user://echo.cfg"  # дымовой тест подменя
 var player: CharacterBody2D
 var picker
 var run_menu
+var rewind  # rewind.gd: жетоны и откат
+var rewind_ui  # rewind_ui.gd: экран выбора после смерти
 var hud
 var vhs
 var cam
@@ -110,6 +117,14 @@ func _ready() -> void:
 	run_menu.endless_requested.connect(_on_endless_requested)
 	run_menu.endless_continue_requested.connect(_on_endless_continue_requested)
 	run_menu.menu_requested.connect(_on_menu_requested)
+	rewind_ui = RewindUiScript.new()
+	add_child(rewind_ui)
+	rewind = RewindScript.new()
+	rewind.main = self
+	rewind.ui = rewind_ui
+	rewind_ui.rewind_requested.connect(rewind.request_rewind)
+	rewind_ui.eject_requested.connect(rewind.request_eject)
+	hud.menu_requested.connect(_on_menu_requested)
 	var progress := ConfigFile.new()
 	if progress.load(progress_path) == OK:
 		endless_unlocked = bool(progress.get_value("progress", "endless_unlocked", false))
@@ -174,6 +189,9 @@ func _start_run(mode: String = "campaign") -> void:
 	get_tree().paused = false
 	run_menu.hide_panel()
 	picker.close()
+	rewind.reset()
+	rewind_tokens = RewindScript.REWIND_TOKENS_START  # только здесь: «Продолжить» после победы жетоны сохраняет
+	rewinds_used = 0
 	Recorder.reset()
 	run_mode = mode
 	loadout = LoadoutScript.new()
@@ -225,6 +243,7 @@ func _start_take() -> void:
 	)
 	state = State.PLAY
 	hud.msg.text = ""
+	hud.hide_eject()
 	armor_charges = _armor_max()
 	invuln = 0.0
 	rerolls_left = 1
@@ -251,10 +270,9 @@ func finish_take() -> void:
 
 
 func _complete_take() -> void:
-	# Страховка на случай, если осколок не успел долететь за время перемотки.
+	# Страховка на случай, если осколок или жетон не успел долететь за время перемотки.
 	for p in get_tree().get_nodes_in_group("pickups"):
-		add_xp(p.value)
-		p.queue_free()
+		p.collect()
 	Recorder.finish_take()
 	take += 1
 	state = State.REWIND
@@ -275,8 +293,7 @@ func boss_died() -> void:
 	cam.hitstop(0.18)
 	if run_mode == "campaign" and take == CAMPAIGN_TAKES:
 		for p in get_tree().get_nodes_in_group("pickups"):
-			add_xp(p.value)
-			p.queue_free()
+			p.collect()  # победная ветка гасит все осколки, жетон за Цензора засчитывается здесь, иначе он пропадёт
 		state = State.VICTORY
 		player.active = false
 		endless_unlocked = true
@@ -310,11 +327,14 @@ func _on_endless_continue_requested() -> void:
 	run_mode = "endless"
 	take = 13
 	run_menu.hide_panel()
+	rewind.reset()  # такт смерти мог начаться до победы: флаг не должен пережить её
 	_start_take()
 
 
 func _on_menu_requested() -> void:
 	get_tree().paused = false
+	rewind.reset()
+	hud.hide_eject()
 	_clear_world()
 	if is_instance_valid(player):
 		player.queue_free()
@@ -341,13 +361,16 @@ func player_died() -> void:
 	player.active = false
 	spawn_burst(player.position, Color("f4f0ff"))
 	player.visible = false
+	player.reset_input()  # стик пропадает с экрана: по этому видно, что управление потеряно
 	vhs.pulse(1.0)
 	cam.shake(0.8)
 	cam.hitstop(0.12)
-	hud.msg.text = (
-		"EJECT\n\nкассета: %s\nубито: %d  |  уровень: %d  |  дубль: %d\n\nтап/клавиша — начать заново\nEsc — главное меню"
-		% [GENRES[genre]["name"], kills, level, take]
-	)
+	rewind.on_death()  # есть жетон: такт смерти и экран выбора; нет — сразу EJECT
+
+
+## Итоговый экран конца забега: тап или клавиша через 0.4 с — заново, Esc — в меню.
+func show_eject() -> void:
+	hud.show_eject(GENRES[genre]["name"], kills, level, take, rewinds_used)
 
 
 func _shockwave(center: Vector2, radius: float) -> void:
@@ -462,7 +485,9 @@ func _physics_process(delta: float) -> void:
 				_complete_take()
 		State.DEAD:
 			dead_time += delta
-		State.PICK:
+			if rewind.beat and dead_time >= rewind.DEATH_BEAT:
+				rewind.open_panel()
+		State.PICK, State.LAST_CHANCE:
 			pass
 
 
@@ -812,6 +837,7 @@ func spawn_shards(pos: Vector2, kind: int) -> void:
 		6:
 			for i in 4:
 				_drop(pos + Vector2(randf_range(-50, 50), randf_range(-70, 70)), 25)
+			rewind.drop_token(pos)
 		_:
 			_drop(pos, 1)
 
@@ -831,11 +857,12 @@ func _drop(pos: Vector2, value: int) -> void:
 func _process(_delta: float) -> void:
 	hud.show_take(take, take_time, CAMPAIGN_TAKES, run_mode == "endless", state == State.PLAY)
 	hud.show_level(level, xp, xp_need(level))
+	hud.show_tokens(rewind_tokens)
 	hud.refresh_loadout(loadout, armor_charges)
 	vhs.rewind_hold = state == State.REWIND
 	if is_instance_valid(player):
 		var blink := invuln > 0.0 and fmod(invuln, 0.2) < 0.1
-		player.modulate.a = 0.4 if blink else 1.0
+		player.modulate = PlayerScript.INVULN_TINT if blink else Color.WHITE  # не прозрачность: героя видно всегда
 	queue_redraw()
 
 
@@ -855,10 +882,13 @@ func _draw() -> void:
 # ---------- ввод ----------
 
 
-## После смерти: тап или любая клавиша — заново, Esc — в главное меню.
+## После смерти: тап или любая клавиша — заново, Esc или кнопка «В МЕНЮ» — в главное меню.
+## Пока идёт такт смерти с жетоном, ввод игнорируется целиком: иначе тап перезапустил бы забег в обход экрана выбора.
 func _input(event: InputEvent) -> void:
-	if state != State.DEAD or not event.is_pressed() or event.is_echo():
+	if state != State.DEAD or rewind.beat or not event.is_pressed() or event.is_echo():
 		return
+	if (event is InputEventScreenTouch or event is InputEventMouseButton) and hud.eject_menu_hit(event.position):
+		return  # кнопку меню нажмёт интерфейс
 	if event is InputEventKey and event.keycode == KEY_ESCAPE:
 		_on_menu_requested()
 	elif (

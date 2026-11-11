@@ -1,11 +1,12 @@
 extends Node
 ## Отладочные клавиши — только в отладочной сборке на ПК:
 ## 1–6 — забег за героя, G — следующий жанр кассеты, B — вызвать Цензора,
-## X — сразу получить уровень, M — пара оружия для «Монтажа», T — сразу закончить дубль (появится копия).
+## X — сразу получить уровень, M — пара оружия для «Монтажа», T — сразу закончить дубль (появится копия),
+## K — погибнуть (без брони, чтобы увидеть экран REWIND), L — +1 жетон перемотки.
 
 const HEROES := ["clerk", "courier", "guard", "projectionist", "popcorn", "critic"]
 const MONTAGE_PAIRS := [["cassette", "magnet"], ["bat", "flash"], ["remote", "flashlight"], ["pricetags", "popgun"]]
-const IN_RUN_KEYS := [KEY_B, KEY_T, KEY_M, KEY_X]
+const IN_RUN_KEYS := [KEY_B, KEY_T, KEY_M, KEY_X, KEY_K, KEY_L]
 
 var main
 var _montage_i := 0
@@ -45,6 +46,12 @@ func _cheat(keycode: Key) -> void:
 			_montage()
 		KEY_X:
 			main.add_xp(main.xp_need(main.level))
+		KEY_K:
+			main.invuln = 0.0
+			main.armor_charges = 0
+			main.player_died()
+		KEY_L:
+			main.rewind.grant_token()
 
 
 ## Оставляет в сборке два оружия третьего уровня и сразу открывает выбор — в нём будет «Монтаж».
