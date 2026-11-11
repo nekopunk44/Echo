@@ -3,3 +3,4 @@
 
 *.png binary
 *.keystore binary
+*.ttf binary
