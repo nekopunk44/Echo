@@ -1,7 +1,7 @@
 extends Node
 ## Снимки экрана для проверки внешнего вида. Нужен настоящий рендер, поэтому без --headless:
 ## godot --path . --resolution 720x1280 res://tests/shots.tscn -- <папка для PNG>
-## Снимает меню, бой, всплеск VHS, перемотку между дублями и выбор плёнки.
+## Снимает меню, бой, выбор плёнки, всплеск VHS, перемотку между дублями и арену каждого жанра.
 
 const MainScene := preload("res://main.tscn")
 
@@ -26,7 +26,7 @@ func _run() -> void:
 	await _play(6.0)
 	await _shot("02_play")
 	main.add_xp(main.xp_need(main.level))
-	await _wait(0.3)
+	await _wait(1.3)  # карточки выезжают по очереди
 	await _shot("03_pick")
 	await _play(2.0)
 	main.spawn_boss()
@@ -39,6 +39,11 @@ func _run() -> void:
 		await get_tree().process_frame
 	await _wait(0.3)
 	await _shot("05_rewind")
+	for g in main.GENRES.size():
+		main.forced_genre = g
+		main.restart_run()
+		await _play(4.0)
+		await _shot("06_genre_%d" % g)
 	get_tree().quit(0)
 
 

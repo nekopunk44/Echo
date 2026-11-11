@@ -23,6 +23,7 @@ const RunMenuScript := preload("res://run_menu.gd")
 const HudScript := preload("res://hud.gd")
 const VhsScript := preload("res://vhs.gd")
 const JuiceScript := preload("res://juice.gd")
+const BackdropScript := preload("res://backdrop.gd")
 const DebugKeysScript := preload("res://debug_keys.gd")
 
 const ROUND_TIME := 30.0  # для финальной версии: 90.0
@@ -81,6 +82,7 @@ var run_menu
 var hud
 var vhs
 var cam
+var backdrop
 var genre := 0
 var forced_genre := -1
 var boss_spawned := false
@@ -90,6 +92,8 @@ var boss_defeated := false
 func _ready() -> void:
 	randomize()
 	RenderingServer.set_default_clear_color(Color("1a0b2e"))
+	backdrop = BackdropScript.new()
+	add_child(backdrop)
 	cam = JuiceScript.new()
 	add_child(cam)
 	vhs = VhsScript.new()
@@ -213,6 +217,7 @@ func _start_take() -> void:
 	boss_defeated = false
 	act_index = int((take - 1) / BOSS_EVERY) % ACT_RULES.size()
 	genre = (run_genre + int((take - 1) / BOSS_EVERY)) % GENRES.size()
+	backdrop.set_genre(genre)
 	var act := act_index + 1
 	var boss_tag := "  ·  БОСС" if _is_boss_take() else ""
 	hud.genre_label.text = (
