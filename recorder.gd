@@ -37,6 +37,17 @@ func record_event(id: String) -> void:
 		current_events.append([current.size(), id])
 
 
+## Откат REWIND: срезает с конца записи до ticks тиков и возвращает новую длину. Выборы плёнок из срезанных тиков
+## не пропадают, а переезжают на тик отката: герой оставляет эти плёнки себе, и копия должна иметь ту же сборку.
+func rewind(ticks: int) -> int:
+	var new_n := maxi(0, current.size() - ticks)
+	current.resize(new_n)
+	for ev in current_events:
+		if ev[0] > new_n:
+			ev[0] = new_n
+	return new_n
+
+
 ## Дубль сохраняется только если игрок дожил до конца (неудачные секунды не пишутся).
 func finish_take() -> void:
 	recording = false

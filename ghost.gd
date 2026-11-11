@@ -59,6 +59,20 @@ func _ready() -> void:
 		position = path[0]
 
 
+## Перемотка на тик записи (REWIND героя): шаг абсолютный, потому что копии не останавливаются на смерти героя
+## и успевают уйти вперёд. Сборку пересобираем по событиям, чтобы она совпала со сборкой героя в этой точке.
+func seek(tick: int) -> void:
+	idx = tick
+	if path.size() > 0:  # при tick == 0 — начало записи, иначе копия стоит не там до следующего тика
+		position = path[clampi(tick, 1, path.size()) - 1]
+	lo.levels = start_levels.duplicate()
+	ev_i = 0
+	while ev_i < events.size() and events[ev_i][0] <= idx:
+		lo.add(events[ev_i][1])
+		ev_i += 1
+	cds.clear()
+
+
 func _physics_process(delta: float) -> void:
 	t += delta
 	while ev_i < events.size() and events[ev_i][0] <= idx:
