@@ -2,11 +2,14 @@ extends Node
 ## Снимки экрана для проверки внешнего вида. Нужен настоящий рендер, поэтому без --headless:
 ## godot --path . --resolution 720x1280 res://tests/shots.tscn -- <папка для PNG>
 ## Снимает меню, бой с цифрами урона, выбор плёнки, всплеск VHS, перемотку между дублями, арену каждого жанра,
-## экран REWIND после смерти (до и после конца блокировки), кадр после отката, экран EJECT и жетон на земле.
+## экран REWIND после смерти (до и после конца блокировки), кадр после отката, экран EJECT, анимацию смерти героя
+## и жетон на земле.
 ## Те же экраны есть в варианте для телефона (без подсказок про клавиши): подсказки зависят от Art.is_phone().
 
 const MainScene := preload("res://main.tscn")
 const Art := preload("res://art.gd")
+const RewindScript := preload("res://rewind.gd")
+const HeroDeathScript := preload("res://hero_death_fx.gd")
 
 var main
 var out_dir := ""
@@ -91,6 +94,7 @@ func _last_chance_shots() -> void:
 	main.player_died()  # жетонов больше нет: сразу EJECT с числом перемоток
 	await _wait(0.6)
 	await _shot("09_eject")
+	await _death_fx_shots()
 	await _phone_shots()
 	main.restart_run()
 	await _play(2.0)
@@ -106,6 +110,34 @@ func _last_chance_shots() -> void:
 	main.rewind_tokens = 2  # оба слота жетонов в HUD полные
 	await _wait(0.2)
 	await _shot("10b_tokens_full")
+
+
+## Снимки анимации смерти «плёнку зажевало»: фаза срыва трекинга и фаза выключения кинескопа.
+## Анимация идёт в игровом времени — _wait() (настенное) не подходит; используем process_frame и счётчик.
+func _death_fx_shots() -> void:
+	main.restart_run()
+	await _play(3.0)  # немного записи для достоверности кадра
+	main.invuln = 0.0
+	main.armor_charges = 0
+	main.player_died()
+	# Снимок 11a: середина фазы TEAR ≈ 0.25 с игрового времени (≈ 0.50 × DEATH_BEAT).
+	# Из-за хитстопа 0.12 с первые кадры почти заморожены; ждём process_frame, а не _wait().
+	var t_target_a := RewindScript.DEATH_BEAT * 0.50
+	var t_target_b := RewindScript.DEATH_BEAT * 0.84
+	# Ищем узел эффекта, чтобы читать его внутренний таймер
+	var dfx = null
+	for n in get_tree().get_nodes_in_group("fx"):
+		if n.get_script() == HeroDeathScript:
+			dfx = n
+			break
+	# Ждём момента ≈ 0.25 с (фаза TEAR, RGB-расслоение + полосы)
+	while dfx != null and is_instance_valid(dfx) and dfx._t < t_target_a:
+		await get_tree().process_frame
+	await _shot("11a_death_tear")
+	# Ждём момента ≈ 0.42 с (фаза CRT-OFF, белая линия гаснет)
+	while dfx != null and is_instance_valid(dfx) and dfx._t < t_target_b:
+		await get_tree().process_frame
+	await _shot("11b_death_line")
 
 
 ## Экраны смерти в варианте для телефона: нет подсказок про клавиши панели и про Esc на экране EJECT.

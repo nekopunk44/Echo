@@ -9,6 +9,7 @@ const UpgradesScript := preload("res://upgrades.gd")
 const LoadoutScript := preload("res://loadout.gd")
 const BoomerangScript := preload("res://boomerang.gd")
 const EnemyScript := preload("res://enemy.gd")
+const HeroDeathFxScript := preload("res://hero_death_fx.gd")
 
 const HEROES := ["clerk", "courier", "guard", "projectionist", "popcorn", "critic"]
 const TAKES_PER_HERO := 4
@@ -41,6 +42,7 @@ func _run() -> void:
 	await _check_montages()
 	await _check_hit_fx()
 	await _check_death()
+	await _check_death_fx()
 	await _check_rewind()
 	await _check_rewind_early()
 	await _check_rewind_push()
@@ -163,6 +165,37 @@ func _check_death() -> void:
 	_kill_player()
 	await _press(KEY_ESCAPE)
 	_expect(main.state == main.State.MENU, "Esc после смерти не вернул в меню")
+
+
+## Анимация смерти «плёнку зажевало»: в группе fx появляется узел с HeroDeathFxScript,
+## через 0.7 с он исчезает, герой при этом невидим.
+func _check_death_fx() -> void:
+	main.run_menu.campaign_requested.emit("clerk")
+	await _frames(30)
+	main.rewind_tokens = 0
+	_kill_player()
+	_expect(main.state == main.State.DEAD, "death_fx: игрок не погиб")
+	# Узел эффекта должен появиться в группе fx сразу после смерти
+	var fx_nodes := get_tree().get_nodes_in_group("fx")
+	var has_dfx := false
+	for n in fx_nodes:
+		if n.get_script() == HeroDeathFxScript:
+			has_dfx = true
+			break
+	_expect(has_dfx, "death_fx: узел hero_death_fx не появился в группе fx")
+	_expect(not main.player.visible, "death_fx: герой виден сразу после смерти")
+	# Ждём 0.7 с игрового времени (42 кадра при 60 fps): DEATH_BEAT=0.5, запас для queue_free()
+	await _frames(42)
+	var still_alive := false
+	for n in get_tree().get_nodes_in_group("fx"):
+		if n.get_script() == HeroDeathFxScript:
+			still_alive = true
+			break
+	_expect(not still_alive, "death_fx: узел hero_death_fx не удалился через 0.7 с")
+	_expect(not main.player.visible, "death_fx: герой стал видимым раньше отката")
+	# Возвращаемся в меню, как делает _check_death() — не ломаем следующие проверки
+	await _press(KEY_ESCAPE)
+	_expect(main.state == main.State.MENU, "death_fx: Esc не вернул в меню после проверки")
 
 
 ## REWIND на третьем дубле с двумя копиями: экран выбора, защита от случайного нажатия, откат записи, героя,
