@@ -1,9 +1,11 @@
 extends CanvasLayer
 ## Экран выбора: пауза в стиле OSD плеера, три карточки (оружие — голубая рамка, плёнка — розовая), пересброс.
 ## Работает при get_tree().paused = true (process_mode = ALWAYS). Выбор: тап по карточке или клавиши 1/2/3.
+## Бесплатные перебросы кончились — та же кнопка предлагает переброс за рекламу (жёлтая рамка, значок ▶), клавиша R.
 
 signal picked(id: String)
 signal reroll_requested
+signal ad_reroll_requested
 
 const Upgrades := preload("res://upgrades.gd")
 const Art := preload("res://art.gd")
@@ -11,6 +13,10 @@ const Art := preload("res://art.gd")
 var root: Control
 var sub_lbl: Label
 var reroll_btn: Button
+var reroll_free_style: StyleBoxFlat
+var reroll_ad_style: StyleBoxFlat
+var reroll_ad_icon: Control  # треугольник ▶ нарисован: в шрифте кнопки такого глифа нет
+var reroll_for_ad := false
 var cards: Array = []
 var icons: Array = []
 var montage_views: Array = []
@@ -124,16 +130,31 @@ func _ready() -> void:
 	reroll_btn.focus_mode = Control.FOCUS_NONE
 	reroll_btn.add_theme_font_override("font", Art.BOLD_FONT)
 	reroll_btn.add_theme_font_size_override("font_size", 28)
+	reroll_free_style = _reroll_style(Art.CYAN)
+	reroll_ad_style = _reroll_style(Art.YELLOW)
+	reroll_ad_style.content_margin_left = 44  # текст сдвинут вправо, слева место под значок ▶
+	reroll_btn.pressed.connect(_on_reroll_pressed)
+	root.add_child(reroll_btn)
+	reroll_ad_icon = Control.new()
+	reroll_ad_icon.position = Vector2(22, 23)
+	reroll_ad_icon.size = Vector2(20, 24)
+	reroll_ad_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	reroll_ad_icon.draw.connect(
+		func() -> void:
+			reroll_ad_icon.draw_colored_polygon(
+				PackedVector2Array([Vector2.ZERO, Vector2(20, 12), Vector2(0, 24)]), Art.YELLOW
+			)
+	)
+	reroll_btn.add_child(reroll_ad_icon)
+
+
+func _reroll_style(border: Color) -> StyleBoxFlat:
 	var rb := StyleBoxFlat.new()
 	rb.bg_color = Color("1f0f3a")
-	rb.border_color = Art.CYAN
+	rb.border_color = border
 	rb.set_border_width_all(3)
 	rb.set_corner_radius_all(14)
-	reroll_btn.add_theme_stylebox_override("normal", rb)
-	reroll_btn.add_theme_stylebox_override("hover", rb)
-	reroll_btn.add_theme_stylebox_override("pressed", rb)
-	reroll_btn.pressed.connect(func(): reroll_requested.emit())
-	root.add_child(reroll_btn)
+	return rb
 
 
 func _label(
@@ -158,7 +179,7 @@ func _label(
 func open(title: String, choice_ids: Array, loadout, rerolls_left: int) -> void:
 	sub_lbl.text = title
 	set_choices(choice_ids, loadout)
-	set_reroll_count(rerolls_left)
+	set_reroll_state(rerolls_left, false)
 	root.visible = true
 	root.modulate.a = 0.0
 	root.scale = Vector2(0.96, 0.96)
@@ -235,9 +256,24 @@ func set_choices(choice_ids: Array, loadout) -> void:
 		descs[i].text = Upgrades.card_description(id, lvl, loadout)
 
 
-func set_reroll_count(count: int) -> void:
-	reroll_btn.visible = count > 0
-	reroll_btn.text = "ПЕРЕБРОС · %d" % count
+## Бесплатные перебросы идут первыми; реклама предлагается, только когда их нет. Нет ни того, ни другого — кнопки нет.
+func set_reroll_state(free_count: int, ad_available: bool) -> void:
+	reroll_for_ad = free_count <= 0 and ad_available
+	reroll_btn.visible = free_count > 0 or reroll_for_ad
+	reroll_btn.text = "ПЕРЕБРОС ЗА РЕКЛАМУ" if reroll_for_ad else "ПЕРЕБРОС · %d" % free_count
+	reroll_ad_icon.visible = reroll_for_ad
+	var style := reroll_ad_style if reroll_for_ad else reroll_free_style
+	for state in ["normal", "hover", "pressed"]:
+		reroll_btn.add_theme_stylebox_override(state, style)
+
+
+func _on_reroll_pressed() -> void:
+	if not reroll_btn.visible:
+		return
+	if reroll_for_ad:
+		ad_reroll_requested.emit()
+	else:
+		reroll_requested.emit()
 
 
 func _icon_view(pos: Vector2, size: Vector2) -> TextureRect:
@@ -271,6 +307,9 @@ func _input(event: InputEvent) -> void:
 				i = 1
 			KEY_3:
 				i = 2
+			KEY_R:
+				get_viewport().set_input_as_handled()
+				_on_reroll_pressed()
 		if i >= 0 and i < ids.size():
 			get_viewport().set_input_as_handled()
 			_choose(i)

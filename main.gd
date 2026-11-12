@@ -32,6 +32,7 @@ const RewindUiScript := preload("res://rewind_ui.gd")
 const HeroDeathScript := preload("res://hero_death_fx.gd")
 
 const ROUND_TIME := 30.0  # для финальной версии: 90.0
+const AD_REROLLS_PER_PICK := 1  # реклама добровольная, но барабан за роликами не должен крутиться без конца
 const ARENA := Vector2(720, 1280)
 const GHOST_DMG := 0.6  # урон копии относительно игрока
 const CAMPAIGN_TAKES := 12
@@ -71,6 +72,7 @@ var choices: Array = []
 var run_seed := 0
 var reroll_idx := 0
 var rerolls_left := 1
+var ad_rerolls_this_pick := 0
 var armor_charges := 0
 var invuln := 0.0
 var rewind_tokens := 0  # жетоны перемотки на руках (правила — в rewind.gd)
@@ -116,6 +118,7 @@ func _ready() -> void:
 	add_child(picker)
 	picker.picked.connect(_on_picked)
 	picker.reroll_requested.connect(_on_reroll)
+	picker.ad_reroll_requested.connect(_on_ad_reroll)
 	run_menu = RunMenuScript.new()
 	add_child(run_menu)
 	run_menu.campaign_requested.connect(_on_campaign_requested)
@@ -417,7 +420,9 @@ func _open_picker() -> void:
 	player.reset_input()
 	get_tree().paused = true
 	_roll_choices()
+	ad_rerolls_this_pick = 0
 	picker.open(cur_pick["title"], choices, loadout, rerolls_left + bonus_rerolls)
+	_refresh_reroll()
 
 
 func _roll_choices() -> void:
@@ -449,7 +454,29 @@ func _on_reroll() -> void:
 	reroll_idx += 1
 	_roll_choices()
 	picker.set_choices(choices, loadout)
-	picker.set_reroll_count(rerolls_left + bonus_rerolls)
+	_refresh_reroll()
+
+
+func _refresh_reroll() -> void:
+	var ad_ok := ad_rerolls_this_pick < AD_REROLLS_PER_PICK and Ads.is_available(Ads.PLACEMENT_REROLL)
+	picker.set_reroll_state(rerolls_left + bonus_rerolls, ad_ok)
+
+
+## Переброс за рекламу: только когда бесплатные кончились. Пока идёт ролик, кнопки нет.
+func _on_ad_reroll() -> void:
+	if state != State.PICK or rerolls_left + bonus_rerolls > 0 or ad_rerolls_this_pick >= AD_REROLLS_PER_PICK:
+		return
+	Ads.show_rewarded(Ads.PLACEMENT_REROLL, _on_ad_reroll_done)
+	_refresh_reroll()
+
+
+func _on_ad_reroll_done(rewarded: bool) -> void:
+	if rewarded and state == State.PICK:
+		ad_rerolls_this_pick += 1
+		reroll_idx += 1
+		_roll_choices()
+		picker.set_choices(choices, loadout)
+	_refresh_reroll()
 
 
 func _apply_pick(id: String) -> void:
