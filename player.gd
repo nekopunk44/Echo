@@ -119,6 +119,18 @@ func _physics_process(delta: float) -> void:
 	queue_redraw()
 
 
+## Данные кадра для анимации смерти: текстура, число кадров, текущий кадр.
+## Вынесено сюда, чтобы main.gd не лез во внутренние поля hero.
+func death_frame_data() -> Dictionary:
+	return {
+		"tex": walk_tex if walk_tex else tex,
+		"frames": WALK_FRAMES if walk_tex else 1,
+		"frame": frame,
+		"flip": flip,
+		"h": SPRITE_H
+	}
+
+
 ## Сбрасывает виртуальный стик (после паузы выбора палец мог уже оторваться).
 func reset_input() -> void:
 	touching = false

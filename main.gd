@@ -29,6 +29,7 @@ const BackdropScript := preload("res://backdrop.gd")
 const DebugKeysScript := preload("res://debug_keys.gd")
 const RewindScript := preload("res://rewind.gd")
 const RewindUiScript := preload("res://rewind_ui.gd")
+const HeroDeathScript := preload("res://hero_death_fx.gd")
 
 const ROUND_TIME := 30.0  # для финальной версии: 90.0
 const ARENA := Vector2(720, 1280)
@@ -368,6 +369,16 @@ func player_died() -> void:
 	spawn_burst(player.position, Color("f4f0ff"))
 	player.visible = false
 	player.reset_input()  # стик пропадает с экрана: по этому видно, что управление потеряно
+	# Анимация «плёнку зажевало»: узел живёт ровно такт смерти, потом queue_free() сам
+	var dfd: Dictionary = player.death_frame_data()
+	var dfx := HeroDeathScript.new()
+	dfx.position = player.position
+	dfx.hero_tex = dfd["tex"]
+	dfx.hero_frames = dfd["frames"]
+	dfx.hero_frame = dfd["frame"]
+	dfx.hero_flip = dfd["flip"]
+	dfx.hero_h = dfd["h"]
+	add_child(dfx)
 	vhs.pulse(1.0)
 	cam.shake(0.8)
 	cam.hitstop(0.12)
