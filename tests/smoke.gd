@@ -39,6 +39,7 @@ func _run() -> void:
 		await _play_takes(TAKES_PER_HERO)
 		_expect(Recorder.ghosts.size() == TAKES_PER_HERO, "%s: записалось копий %d" % [hero, Recorder.ghosts.size()])
 	await _check_montages()
+	await _check_hit_fx()
 	await _check_death()
 	await _check_rewind()
 	await _check_rewind_early()
@@ -118,6 +119,29 @@ func _check_montages() -> void:
 		for id in main.loadout.levels:
 			has_montage = has_montage or UpgradesScript.CATALOG[id].has("parts")
 		_expect(has_montage, "Монтаж %d не собрался: %s" % [i + 1, main.loadout.levels])
+
+
+## Отклик на попадание: появление цифр урона, лимит буфера при частых ударах и очистка при смене дубля.
+func _check_hit_fx() -> void:
+	main.run_menu.campaign_requested.emit("clerk")
+	await _frames(5)
+	main._clear_world()
+	_expect(main.hit_fx.alive_numbers() == 0, "после очистки мира остались цифры: %d" % main.hit_fx.alive_numbers())
+	var e = _enemy_at(0, Vector2(360, 640))
+	e.hit(1.0, "player")
+	_expect(main.hit_fx.alive_numbers() > 0, "удар по врагу не создал цифру урона")
+	for row in 10:
+		for col in 10:
+			_enemy_at(0, Vector2(100.0 + col * 40.0, 200.0 + row * 40.0)).hit(1.0, "player")
+	var max_num: int = main.hit_fx.MAX_NUMBERS
+	_expect(
+		main.hit_fx.alive_numbers() <= max_num,
+		"100 ударов переполнили буфер: %d > %d" % [main.hit_fx.alive_numbers(), max_num]
+	)
+	main._clear_world()
+	_expect(
+		main.hit_fx.alive_numbers() == 0, "после _clear_world() цифры не сбросились: %d" % main.hit_fx.alive_numbers()
+	)
 
 
 ## Смерть без жетонов идёт по-старому: сразу EJECT, тап или клавиша через 0.4 с — заново, Esc — в меню.

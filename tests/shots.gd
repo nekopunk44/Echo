@@ -1,7 +1,7 @@
 extends Node
 ## Снимки экрана для проверки внешнего вида. Нужен настоящий рендер, поэтому без --headless:
 ## godot --path . --resolution 720x1280 res://tests/shots.tscn -- <папка для PNG>
-## Снимает меню, бой, выбор плёнки, всплеск VHS, перемотку между дублями, арену каждого жанра,
+## Снимает меню, бой с цифрами урона, выбор плёнки, всплеск VHS, перемотку между дублями, арену каждого жанра,
 ## экран REWIND после смерти (до и после конца блокировки), кадр после отката, экран EJECT и жетон на земле.
 ## Те же экраны есть в варианте для телефона (без подсказок про клавиши): подсказки зависят от Art.is_phone().
 
@@ -28,6 +28,15 @@ func _run() -> void:
 	main.run_menu.campaign_requested.emit("clerk")
 	await _play(6.0)
 	await _shot("02_play")
+	await _play(0.3)
+	await _shot("02b_hits")
+	# Кадр после сохранения снимка длинный: искры (0.12 с) и вспышка сгорели бы за него. Пропускаем его
+	await get_tree().process_frame
+	await get_tree().process_frame
+	for e in get_tree().get_nodes_in_group("enemies"):
+		e.hit(0.5, "player")
+	await get_tree().physics_frame  # враг перерисовывается в физике: без её тика вспышки на снимке нет
+	await _shot("02c_hits_direct")
 	main.add_xp(main.xp_need(main.level))
 	await _wait(1.3)  # карточки выезжают по очереди
 	await _shot("03_pick")
