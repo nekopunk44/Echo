@@ -194,7 +194,7 @@ func _start_run(mode: String = "campaign") -> void:
 	get_tree().paused = false
 	run_menu.hide_panel()
 	picker.close()
-	rewind.reset()
+	rewind.new_run()
 	rewind_tokens = RewindScript.REWIND_TOKENS_START  # только здесь: «Продолжить» после победы жетоны сохраняет
 	rewinds_used = 0
 	Recorder.reset()

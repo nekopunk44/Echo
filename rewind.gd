@@ -1,5 +1,6 @@
 extends RefCounted
 ## REWIND при смерти: жетоны, такт смерти, экран выбора и сам откат на 5 секунд.
+## Без жетона откат можно получить за рекламу (Ads), один раз за забег.
 ## Состояние забега (rewind_tokens, rewinds_used, State.LAST_CHANCE) лежит в main.gd, здесь только правила.
 ## Откат — одна функция apply(): она не списывает жетон, поэтому её же сможет вызвать награда за рекламу.
 
@@ -18,16 +19,33 @@ const BOSS_PUSH_FACTOR := 0.4  # Цензор отлетает слабее, к�
 const DEATH_BEAT := 0.5  # такт смерти (игровое время): столько играют взрыв и срыв VHS, потом панель
 const FLASH_SECONDS := 0.8  # время надписи «◀◀ REWIND» после отката
 const VHS_FLASH_SECONDS := 0.3  # строки перемотки VHS: короче, иначе героя не разглядеть, а ему надо сразу бежать
+# Документ §6: «лимит 1–2 перемотки за забег». Жетоны (стартовый и за Цензоров) идут сверх; реклама — страховка
+# на случай, когда жетонов нет, а не способ перематывать без конца.
+const AD_REWINDS_PER_RUN := 1
 
 var main
 var ui  # rewind_ui.gd
 var beat := false  # идёт такт смерти: ввод игнорируется, потом откроется панель
+var ad_used := 0  # откатов за рекламу в этом забеге
+var ad_waiting := false  # идёт ролик: панель ждёт, ни REWIND, ни EJECT не нажать
 
 
-## Новый забег или выход в меню: такт сброшен, панель закрыта.
+## Новый забег: лимит рекламы обнуляется. Победа и «Продолжить» его не обнуляют — это тот же забег.
+func new_run() -> void:
+	ad_used = 0
+	reset()
+
+
+## Выход в меню, победа, новый забег: такт сброшен, панель закрыта.
 func reset() -> void:
 	beat = false
+	ad_waiting = false
 	ui.close()
+
+
+## REWIND за рекламу: жетонов нет, лимит забега не выбран и ролик сейчас можно показать.
+func can_rewind_for_ad() -> bool:
+	return main.rewind_tokens <= 0 and ad_used < AD_REWINDS_PER_RUN and Ads.is_available(Ads.PLACEMENT_REWIND)
 
 
 ## Сколько тиков записи откат реально срежет: не больше пяти секунд и не больше самой записи.
@@ -39,7 +57,7 @@ func cut_ticks() -> int:
 ## «есть ли жетон»: иначе можно погибнуть без жетона, убив босса за две секунды до смерти.
 func on_death() -> void:
 	collect_ground_tokens()
-	beat = main.rewind_tokens > 0
+	beat = main.rewind_tokens > 0 or can_rewind_for_ad()
 	if beat:
 		main.hud.msg.text = ""  # надпись EJECT появится, только если игрок откажется от отката
 	else:
@@ -55,19 +73,39 @@ func open_panel() -> void:
 	main.get_tree().paused = true
 	var cut_seconds := float(cut_ticks()) / Engine.physics_ticks_per_second
 	ui.open(main.take, main.kills, main.level, main.rewind_tokens, REWIND_TOKENS_MAX, cut_seconds, REWIND_INVULN)
+	ui.set_ad_mode(main.rewind_tokens <= 0)
 
 
 ## Выбор REWIND на панели: жетон списывается здесь, в момент выбора, а не при открытии экрана.
+## Жетона нет — запускается ролик, а откат будет, только если его досмотрели.
 func request_rewind() -> void:
-	if main.state != main.State.LAST_CHANCE or ui.is_locked() or main.rewind_tokens <= 0:
+	if main.state != main.State.LAST_CHANCE or ui.is_locked() or ad_waiting:
 		return
-	main.rewind_tokens -= 1
+	if main.rewind_tokens > 0:
+		main.rewind_tokens -= 1
+		apply()
+	elif can_rewind_for_ad():
+		ad_waiting = true
+		ui.set_ad_waiting(true)
+		Ads.show_rewarded(Ads.PLACEMENT_REWIND, _on_ad_done)
+
+
+## Ролик закрыт. Не досмотрен — панель остаётся, можно попробовать ещё раз или выбрать EJECT.
+func _on_ad_done(rewarded: bool) -> void:
+	ad_waiting = false
+	ui.set_ad_waiting(false)
+	if main.state != main.State.LAST_CHANCE:
+		return
+	if not rewarded:
+		ui.show_ad_declined(can_rewind_for_ad())
+		return
+	ad_used += 1
 	apply()
 
 
 ## Выбор EJECT: жетон остаётся, дальше обычный экран конца забега.
 func request_eject() -> void:
-	if main.state != main.State.LAST_CHANCE or ui.is_locked():
+	if main.state != main.State.LAST_CHANCE or ui.is_locked() or ad_waiting:
 		return
 	ui.close()
 	main.get_tree().paused = false
@@ -76,7 +114,7 @@ func request_eject() -> void:
 	main.show_eject()
 
 
-## Сам откат, без списания жетона. Зовёт request_rewind(); так же его вызовет и реклама.
+## Сам откат, без списания жетона: его зовут и жетон, и досмотренная реклама.
 func apply() -> void:
 	if main.state != main.State.LAST_CHANCE:
 		return

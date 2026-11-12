@@ -1,5 +1,6 @@
 extends CanvasLayer
 ## Экран «ОБРЫВ ПЛЁНКИ» после смерти с жетоном: REWIND (потратить жетон) или EJECT (закончить забег).
+## Без жетона REWIND идёт за рекламу: на кнопке плашка «РЕКЛАМА», пока идёт ролик, обе кнопки погашены.
 ## Каждый узел — поле, внешний вид правится, не трогая логику.
 ## Работает при get_tree().paused = true (process_mode = ALWAYS). Все таймеры идут по delta, а не по часам:
 ## дымовой прогон на --fixed-fps быстрее настенного времени.
@@ -18,6 +19,8 @@ const DIM_COLOR := Color(0.05, 0.02, 0.10, 0.85)  # затемнение как 
 const TOKEN_ICON_SIZE := 72.0
 const TOKEN_ICON_GAP := 16.0
 const TOKEN_EMPTY := Color(1, 1, 1, 0.2)
+const AD_BADGE_POS := Vector2(400, -18)  # плашка «РЕКЛАМА» сидит на верхней рамке, как ярлык, и не задевает REWIND
+const AD_BADGE_SIZE := Vector2(134, 34)
 
 var root: Control
 var dim: ColorRect
@@ -36,8 +39,12 @@ var eject_hint: Label
 var keys_label: Label
 var lock_bg: ColorRect  # подложка полоски блокировки
 var lock_bar: ColorRect
+var ad_badge: Panel  # жёлтая плашка «РЕКЛАМА»: REWIND без жетона стоит просмотра ролика, это видно до нажатия
 var phone := Art.is_phone()  # на телефоне клавиш нет: подсказка про ПК скрыта (снимки подменяют значение)
 var _lock_left := 0.0
+var _ad_waiting := false
+var _rewind_off := false  # ролик сейчас недоступен: REWIND погашен, остаётся EJECT
+var _hint_text := ""
 
 
 func _ready() -> void:
@@ -100,6 +107,19 @@ func _build_rewind_button() -> void:
 	rewind_button.add_child(rewind_title)
 	rewind_hint = _label("", Vector2(0, 80), Vector2(560, 30), 20, Art.CYAN)
 	rewind_button.add_child(rewind_hint)
+	ad_badge = Panel.new()
+	ad_badge.position = AD_BADGE_POS
+	ad_badge.size = AD_BADGE_SIZE
+	ad_badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Art.YELLOW
+	sb.set_corner_radius_all(8)
+	ad_badge.add_theme_stylebox_override("panel", sb)
+	var badge_text := _label("РЕКЛАМА", Vector2.ZERO, AD_BADGE_SIZE, 18, Art.DARK)
+	badge_text.add_theme_font_override("font", Art.BOLD_FONT)
+	ad_badge.add_child(badge_text)
+	ad_badge.visible = false
+	rewind_button.add_child(ad_badge)
 
 
 ## EJECT меньше и ниже REWIND: отказ от отката не должен случайно подвернуться под палец.
@@ -171,7 +191,11 @@ func open(
 ) -> void:
 	summary_label.text = "ДУБЛЬ %02d · УБИТО %d · УР. %d" % [take_no, kills, level]
 	var seconds := [_seconds_text(cut_seconds), _seconds_text(invuln_seconds)]
-	rewind_hint.text = "−%s С · %s С НЕУЯЗВИМОСТИ · ВРАГИ ОТБРОШЕНЫ" % seconds
+	_hint_text = "−%s С · %s С НЕУЯЗВИМОСТИ · ВРАГИ ОТБРОШЕНЫ" % seconds
+	rewind_hint.text = _hint_text
+	_ad_waiting = false
+	_rewind_off = false
+	set_ad_mode(false)
 	keys_label.visible = not phone
 	_set_token_slots(token_max)
 	for i in token_icons.size():
@@ -179,6 +203,31 @@ func open(
 	_lock_left = PANEL_LOCK
 	_apply_lock()
 	root.visible = true
+
+
+## Жетонов нет: REWIND за рекламу. Пустые места под жетоны остаются — по ним видно, почему реклама.
+func set_ad_mode(on: bool) -> void:
+	ad_badge.visible = on
+	caption_label.text = "ЖЕТОНОВ НЕТ · REWIND ЗА РЕКЛАМУ" if on else "ЖЕТОНЫ ПЕРЕМОТКИ"
+	caption_label.add_theme_color_override("font_color", Art.YELLOW if on else Art.CYAN)
+
+
+func is_ad_mode() -> bool:
+	return ad_badge.visible
+
+
+## Пока идёт ролик, панель ничего не принимает: иначе EJECT во время ролика закончил бы забег за спиной игрока.
+func set_ad_waiting(on: bool) -> void:
+	_ad_waiting = on
+	rewind_hint.text = "ИДЁТ РЕКЛАМА…" if on else _hint_text
+	_apply_lock()
+
+
+## Ролик закрыт без награды. Можно ещё раз — подсказка говорит об этом; нельзя — REWIND гаснет.
+func show_ad_declined(can_retry: bool) -> void:
+	_rewind_off = not can_retry
+	rewind_hint.text = "РОЛИК НЕ ДОСМОТРЕН · МОЖНО ЕЩЁ РАЗ" if can_retry else "РЕКЛАМА НЕДОСТУПНА"
+	_apply_lock()
 
 
 func close() -> void:
@@ -192,7 +241,7 @@ func is_open() -> bool:
 
 ## Пока идёт блокировка, панель ничего не принимает, кнопки выглядят погашенными.
 func is_locked() -> bool:
-	return root.visible and _lock_left > 0.0
+	return root.visible and (_lock_left > 0.0 or _ad_waiting)
 
 
 func _set_token_slots(count: int) -> void:
@@ -222,12 +271,13 @@ func _seconds_text(seconds: float) -> String:
 
 
 func _apply_lock() -> void:
-	var locked := _lock_left > 0.0
+	var locked := _lock_left > 0.0 or _ad_waiting
 	for b in [rewind_button, eject_button]:
-		b.disabled = locked
-		b.modulate.a = LOCKED_ALPHA if locked else 1.0
-	lock_bg.visible = locked
-	lock_bar.visible = locked
+		var off: bool = locked or (b == rewind_button and _rewind_off)
+		b.disabled = off
+		b.modulate.a = LOCKED_ALPHA if off else 1.0
+	lock_bg.visible = _lock_left > 0.0
+	lock_bar.visible = _lock_left > 0.0
 	lock_bar.size.x = 560.0 * (1.0 - _lock_left / PANEL_LOCK)
 
 
