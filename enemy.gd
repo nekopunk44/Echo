@@ -15,6 +15,9 @@ const BURST_COLOR := {
 	5: Color("8cff4a"),
 	6: Color("ff2e88"),
 }
+const NUMBER_INTERVAL := 0.15  # не спамить цифрами урона чаще раза в 0.15 с на врага (фонарик, попкорн)
+const HIT_FLASH := 0.1  # длительность белой вспышки силуэта при попадании
+const HIT_POP := 0.12  # коэффициент вздутия спрайта при вспышке для сочности удара
 
 var kind := 0
 var hp := 2.0
@@ -43,6 +46,10 @@ var wander_t := 0.0
 var bump_cd := 0.0
 var hit_r := 32.0  # радиус попадания пули
 var touch_r := 36.0  # на таком расстоянии враг убивает игрока
+var acc_dmg := 0.0  # накопленный урон между показами цифр
+var acc_source := "player"  # источник урона последней порции
+var acc_synced := false  # был ли синхро-удар в накопленной порции
+var number_cd := 0.0  # таймер до следующего показа цифры урона
 
 var tex: Texture2D
 var sil: Texture2D
@@ -77,6 +84,9 @@ func _physics_process(delta: float) -> void:
 	blind_t = maxf(0.0, blind_t - delta)
 	bump_cd -= delta
 	mark_t = maxf(0.0, mark_t - delta)
+	number_cd = maxf(0.0, number_cd - delta)
+	if number_cd <= 0.0 and acc_dmg > 0.0:
+		_flush_number()
 	if mark_t <= 0.0 and mark_mult != 1.0:
 		mark_mult = 1.0
 		mark_boom_r = 0.0
@@ -153,16 +163,28 @@ func hit(dmg: float, source: String) -> void:
 	if mark_t > 0.0:
 		dmg *= mark_mult
 	var other := "ghost" if source == "player" else "player"
+	var is_sync := false
 	# Синхро-удар: игрок и копия бьют одного врага почти одновременно -> x2 урон
 	if now - last_hit[other] < main.sync_window() and now - last_sync > 0.6:  # не чаще раза в 0.6 с на врага
+		is_sync = true
 		dmg *= main.sync_mult()
 		sync_flash = 0.25
 		last_sync = now
 		last_hit[other] = -99.0
 	last_hit[source] = now
-	hit_flash = 0.07
+	hit_flash = HIT_FLASH
+	if is_instance_valid(main) and main.hit_fx:
+		var spark_ofs := Vector2.from_angle(randf() * TAU) * randf_range(0.0, hit_r * 0.4)
+		main.hit_fx.add_spark(position + spark_ofs, is_sync)
+	acc_dmg += dmg
+	acc_source = source
+	if is_sync:
+		acc_synced = true
+	if number_cd <= 0.0:
+		_flush_number()
 	hp -= dmg
 	if hp <= 0.001:
+		_flush_number()
 		dead = true
 		main.kills += 1
 		main.spawn_shards(position, kind)
@@ -175,6 +197,20 @@ func hit(dmg: float, source: String) -> void:
 		else:
 			main.spawn_burst(position, _base_color())
 		queue_free()
+
+
+func _head_pos() -> Vector2:
+	return position + (Vector2(0.0, -h / 2.0) if tex else Vector2(0.0, -30.0))
+
+
+func _flush_number() -> void:
+	if acc_dmg <= 0.0:
+		return
+	if is_instance_valid(main) and main.hit_fx:
+		main.hit_fx.add_number(_head_pos(), acc_dmg, acc_source, acc_synced)
+	acc_dmg = 0.0
+	acc_synced = false
+	number_cd = NUMBER_INTERVAL
 
 
 func _draw() -> void:
@@ -205,15 +241,17 @@ func _draw() -> void:
 				bob = sin(age * 4.0) * 0.4  # Цензор: размеренный шаг
 		if freeze_t > 0.0:
 			bob = 0.0
+		var pop_k := (HIT_POP * 0.5 if kind == 6 else HIT_POP) * (hit_flash / HIT_FLASH)
+		var cur_h := h * (1.0 + pop_k)
 		Art.shadow(self, h * 0.3, 0.3, h / 2.0 - 4.0)
-		Art.sprite(self, tex, h, flip, bob, Color.WHITE, ofs)
+		Art.sprite(self, tex, cur_h, flip, bob, Color.WHITE, ofs)
 		if freeze_t > 0.0:
-			Art.sprite(self, sil, h, flip, bob, Color(0.55, 0.9, 1.0, 0.4), ofs)
+			Art.sprite(self, sil, cur_h, flip, bob, Color(0.55, 0.9, 1.0, 0.4), ofs)
 		if blind_t > 0.0:
-			Art.sprite(self, sil, h, flip, bob, Color(1.0, 1.0, 0.7, 0.3), ofs)
+			Art.sprite(self, sil, cur_h, flip, bob, Color(1.0, 1.0, 0.7, 0.3), ofs)
 		if sync_flash > 0.0 or hit_flash > 0.0:
-			Art.sprite(self, sil, h, flip, bob, Color(col, 0.85), ofs)
-		_draw_status(-h / 2.0 - 6.0 + ofs.y)
+			Art.sprite(self, sil, cur_h, flip, bob, Color(col, 0.85), ofs)
+		_draw_status(-cur_h / 2.0 - 6.0 + ofs.y)
 		return
 
 	match kind:
