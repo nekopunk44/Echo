@@ -16,6 +16,7 @@ const PopKernelScript := preload("res://popkernel.gd")
 const TagShotScript := preload("res://tagshot.gd")
 const WeaponsScript := preload("res://weapons.gd")
 const BurstScript := preload("res://glitch_burst.gd")
+const HitFxScript := preload("res://hit_fx.gd")
 const PickupScript := preload("res://pickup.gd")
 const LoadoutScript := preload("res://loadout.gd")
 const UpgradesScript := preload("res://upgrades.gd")
@@ -90,6 +91,7 @@ var hud
 var vhs
 var cam
 var backdrop
+var hit_fx
 var genre := 0
 var forced_genre := -1
 var boss_spawned := false
@@ -103,6 +105,8 @@ func _ready() -> void:
 	add_child(backdrop)
 	cam = JuiceScript.new()
 	add_child(cam)
+	hit_fx = HitFxScript.new()
+	add_child(hit_fx)
 	vhs = VhsScript.new()
 	add_child(vhs)
 	hud = HudScript.new()
@@ -256,6 +260,8 @@ func _clear_world() -> void:
 	for group in ["enemies", "bullets", "ghosts", "fx", "pickups"]:
 		for n in get_tree().get_nodes_in_group(group):
 			n.queue_free()
+	if hit_fx:
+		hit_fx.clear()
 
 
 func finish_take() -> void:
