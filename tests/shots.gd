@@ -16,6 +16,7 @@ var out_dir := ""
 
 
 func _ready() -> void:
+	Ads.enabled = false  # старые проверки ждут прежний поток без рекламы; рекламные включают её сами
 	var args := OS.get_cmdline_user_args()
 	out_dir = args[0] if args.size() > 0 else OS.get_user_data_dir().path_join("shots")
 	DirAccess.make_dir_recursive_absolute(out_dir)

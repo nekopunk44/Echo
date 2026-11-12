@@ -9,6 +9,7 @@ config/features=PackedStringArray("4.3")
 [autoload]
 
 Recorder="*res://recorder.gd"
+Ads="*res://ads.gd"
 
 [display]
 

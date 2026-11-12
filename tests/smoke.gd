@@ -25,6 +25,7 @@ var failed := false
 
 
 func _ready() -> void:
+	Ads.enabled = false  # старые проверки ждут прежний поток без рекламы; рекламные включают её сами
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(PROGRESS_PATH))
 	main = MainScene.instantiate()
 	main.progress_path = PROGRESS_PATH
