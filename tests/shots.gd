@@ -1,9 +1,9 @@
 extends Node
 ## Снимки экрана для проверки внешнего вида. Нужен настоящий рендер, поэтому без --headless:
 ## godot --path . --resolution 720x1280 res://tests/shots.tscn -- <папка для PNG>
-## Снимает меню, бой с цифрами урона, выбор плёнки, всплеск VHS, перемотку между дублями, арену каждого жанра,
-## экран REWIND после смерти (до и после конца блокировки), кадр после отката, экран EJECT, анимацию смерти героя
-## и жетон на земле.
+## Снимает меню, бой с цифрами урона, выбор плёнки (и переброс за рекламу, учебный ролик), всплеск VHS,
+## перемотку между дублями, арену каждого жанра, экран REWIND после смерти (до и после конца блокировки,
+## без жетона — за рекламу), кадр после отката, экран EJECT, анимацию смерти героя и жетон на земле.
 ## Те же экраны есть в варианте для телефона (без подсказок про клавиши): подсказки зависят от Art.is_phone().
 
 const MainScene := preload("res://main.tscn")
@@ -44,6 +44,17 @@ func _run() -> void:
 	main.add_xp(main.xp_need(main.level))
 	await _wait(1.3)  # карточки выезжают по очереди
 	await _shot("03_pick")
+	Ads.enabled = true  # бесплатные перебросы кончились: та же кнопка предлагает переброс за рекламу
+	main.rerolls_left = 0
+	main.bonus_rerolls = 0
+	main._refresh_reroll()
+	await _wait(0.2)
+	await _shot("03b_pick_ad_reroll")
+	main.picker.ad_reroll_requested.emit()
+	await _wait(1.0)
+	await _shot("12_fake_ad")
+	Ads._fake.skip()
+	Ads.enabled = false
 	await _play(2.0)
 	main.spawn_boss()
 	await _wait(1.2)
@@ -96,6 +107,7 @@ func _last_chance_shots() -> void:
 	await _wait(0.6)
 	await _shot("09_eject")
 	await _death_fx_shots()
+	await _ad_panel_shots()
 	await _phone_shots()
 	main.restart_run()
 	await _play(2.0)
@@ -139,6 +151,29 @@ func _death_fx_shots() -> void:
 	while dfx != null and is_instance_valid(dfx) and dfx._t < t_target_b:
 		await get_tree().process_frame
 	await _shot("11b_death_line")
+
+
+## Экран выбора без жетона: REWIND за рекламу (плашка на кнопке) и та же панель, пока идёт ролик.
+func _ad_panel_shots() -> void:
+	Ads.enabled = true
+	main.restart_run()
+	await _play(3.0)
+	main.rewind_tokens = 0
+	main.invuln = 0.0
+	main.armor_charges = 0
+	main.player_died()
+	while main.state != main.State.LAST_CHANCE:
+		await get_tree().process_frame
+	while main.rewind_ui.is_locked():
+		await get_tree().process_frame
+	await _wait(0.3)
+	await _shot("07c_last_chance_ad")
+	main.rewind_ui.rewind_requested.emit()
+	Ads._fake.skip()  # закрыт без награды: панель говорит, что можно ещё раз
+	await _wait(0.3)
+	await _shot("07d_last_chance_ad_declined")
+	main.rewind_ui.eject_requested.emit()
+	Ads.enabled = false
 
 
 ## Экраны смерти в варианте для телефона: нет подсказок про клавиши панели и про Esc на экране EJECT.

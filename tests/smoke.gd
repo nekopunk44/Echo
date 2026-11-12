@@ -41,6 +41,7 @@ func _run() -> void:
 		await _play_takes(TAKES_PER_HERO)
 		_expect(Recorder.ghosts.size() == TAKES_PER_HERO, "%s: записалось копий %d" % [hero, Recorder.ghosts.size()])
 	await _check_montages()
+	await _check_ad_reroll()
 	await _check_hit_fx()
 	await _check_death()
 	await _check_death_fx()
@@ -53,6 +54,8 @@ func _run() -> void:
 	await _check_tokens()
 	await _check_panel()
 	await _check_panel_taps()
+	await _check_ad_rewind()
+	await _check_ad_rewind_declined()
 	await _check_eject_menu_tap()
 	await _check_victory()
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(PROGRESS_PATH))
@@ -122,6 +125,45 @@ func _check_montages() -> void:
 		for id in main.loadout.levels:
 			has_montage = has_montage or UpgradesScript.CATALOG[id].has("parts")
 		_expect(has_montage, "Монтаж %d не собрался: %s" % [i + 1, main.loadout.levels])
+
+
+## Переброс за рекламу: кнопка появляется, только когда бесплатных перебросов нет, один раз на экран выбора;
+## пока идёт ролик, её нет; закрытый раньше ролик переброса не даёт и попытку не тратит; без рекламы кнопки нет.
+## Ждём physics_frame, а не _step: _step сам выбрал бы карточку.
+func _check_ad_reroll() -> void:
+	Ads.enabled = true
+	Ads.fake_seconds = 0.0
+	main.run_menu.campaign_requested.emit("projectionist")
+	await _frames(10)
+	main.rerolls_left = 0
+	main.bonus_rerolls = 0
+	await _open_picker_raw()
+	var picker = main.picker
+	_expect(picker.reroll_btn.visible and picker.reroll_for_ad, "реклама: нет кнопки переброса за рекламу")
+	picker.ad_reroll_requested.emit()
+	_expect(main.reroll_idx == 1, "реклама: досмотренный ролик не перебросил карточки")
+	_expect(not picker.reroll_btn.visible, "реклама: второй переброс за рекламу на том же экране")
+	picker.picked.emit(main.choices[0])
+	Ads.fake_seconds = 1.0
+	await _open_picker_raw()
+	_expect(picker.reroll_btn.visible and picker.reroll_for_ad, "реклама: кнопка не вернулась на новом экране")
+	picker.ad_reroll_requested.emit()
+	_expect(Ads.is_showing() and not picker.reroll_btn.visible, "реклама: во время ролика кнопку можно нажать")
+	Ads._fake.skip()
+	_expect(main.reroll_idx == 0 and picker.reroll_btn.visible, "реклама: закрытый ролик дал переброс или съел попытку")
+	Ads.enabled = false
+	main._refresh_reroll()
+	_expect(not picker.reroll_btn.visible, "реклама выключена, а кнопка видна")
+	picker.picked.emit(main.choices[0])
+	Ads.fake_seconds = Ads.FAKE_SECONDS
+	main._on_menu_requested()
+
+
+func _open_picker_raw() -> void:
+	main.add_xp(main.xp_need(main.level))
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	_expect(main.state == main.State.PICK, "реклама: выбор плёнки не открылся")
 
 
 ## Отклик на попадание: появление цифр урона, лимит буфера при частых ударах и очистка при смене дубля.
@@ -528,6 +570,68 @@ func _check_panel() -> void:
 	main.restart_run()
 	_expect(main.state == main.State.PLAY and not get_tree().paused, "перезапуск не снял паузу")
 	_expect(not main.rewind_ui.is_open(), "панель осталась после перезапуска")
+
+
+## REWIND за рекламу: без жетона смерть открывает панель с плашкой «РЕКЛАМА»; досмотренный ролик даёт откат,
+## жетоны не тратятся, лимит — один раз за забег, дальше смерть сразу ведёт на EJECT. Без рекламы всё по-старому.
+func _check_ad_rewind() -> void:
+	Ads.enabled = true
+	Ads.fake_seconds = 0.0  # награда сразу, без экрана ролика
+	main.run_menu.campaign_requested.emit("courier")
+	await _frames(30)
+	main.rewind_tokens = 0
+	_kill_player()
+	_expect(main.state == main.State.DEAD and not _eject_shown(), "реклама: без жетона нет такта смерти")
+	await _frames(60)
+	_expect(main.state == main.State.LAST_CHANCE, "реклама: экран выбора не открылся")
+	_expect(main.rewind_ui.is_ad_mode(), "реклама: на кнопке REWIND нет плашки «РЕКЛАМА»")
+	await _frames(50)
+	main.rewind_ui.rewind_requested.emit()
+	_expect(main.state == main.State.PLAY and not get_tree().paused, "реклама: досмотренный ролик не дал отката")
+	_expect(main.rewind_tokens == 0, "реклама: появился жетон")
+	_expect(main.rewind.ad_used == 1 and main.rewinds_used == 1, "реклама: откат не засчитан")
+	await _frames(200)  # неуязвимость после отката
+	_kill_player()
+	_expect(main.state == main.State.DEAD and _eject_shown(), "реклама: второй откат за забег предложен")
+	main.restart_run()
+	_expect(main.rewind.ad_used == 0, "реклама: лимит не обнулился в новом забеге")
+	await _frames(30)
+	main.rewind_tokens = 1
+	await _to_panel()
+	_expect(not main.rewind_ui.is_ad_mode(), "реклама: плашка при жетоне на руках")
+	main.rewind_ui.eject_requested.emit()
+	Ads.enabled = false
+	main.restart_run()
+	await _frames(30)
+	main.rewind_tokens = 0
+	_kill_player()
+	_expect(_eject_shown(), "реклама выключена, а смерть без жетона не ведёт на EJECT")
+	Ads.fake_seconds = Ads.FAKE_SECONDS
+	main._on_menu_requested()
+
+
+## Ролик закрыт раньше: отката нет, панель ждёт, пока идёт ролик, ни REWIND, ни EJECT не срабатывают;
+## вторая попытка, досмотренная до конца, даёт откат.
+func _check_ad_rewind_declined() -> void:
+	Ads.enabled = true
+	Ads.fake_seconds = 1.0
+	main.run_menu.campaign_requested.emit("guard")
+	await _frames(30)
+	main.rewind_tokens = 0
+	await _to_panel()
+	main.rewind_ui.rewind_requested.emit()
+	_expect(Ads.is_showing() and main.rewind_ui.is_locked(), "реклама: панель не ждёт ролик")
+	main.rewind_ui.eject_requested.emit()
+	_expect(main.state == main.State.LAST_CHANCE, "реклама: EJECT сработал во время ролика")
+	Ads._fake.skip()
+	_expect(main.state == main.State.LAST_CHANCE and main.rewind.ad_used == 0, "реклама: закрытый ролик дал откат")
+	_expect("ЕЩЁ РАЗ" in main.rewind_ui.rewind_hint.text, "реклама: не сказано, что можно ещё раз")
+	main.rewind_ui.rewind_requested.emit()
+	await _frames(90)  # ролик 1 с идёт по delta на паузе
+	_expect(main.state == main.State.PLAY and main.rewind.ad_used == 1, "реклама: досмотренный ролик не дал отката")
+	Ads.enabled = false
+	Ads.fake_seconds = Ads.FAKE_SECONDS
+	main._on_menu_requested()
 
 
 ## Касания по настоящим кнопкам панели, как на телефоне (остальные проверки шлют сигналы в обход кнопок):
