@@ -97,6 +97,11 @@ func shelf() -> void:
 		var tape_name: String = t.main.cassettes.COVERS[seen_idx]["name"]
 		var btn_text: String = t.main.run_menu.shelf_button.text
 		t._expect(tape_name in btn_text, "полка: подпись «%s» не содержит «%s»" % [btn_text, tape_name])
+		var tape_color: Color = t.main.cassettes.COVERS[seen_idx]["color"]
+		t._expect(
+			t.main.run_menu.shelf_button.get_theme_color("font_color") == tape_color,
+			"полка: название кассеты в меню не использует цвет обложки"
+		)
 		t.main.run_menu.open_shelf()
 
 	# Кнопка «СЛУЧАЙНАЯ КАССЕТА»
