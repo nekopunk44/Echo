@@ -26,14 +26,15 @@
 | `player.gd`, `ghost.gd`, `enemy.gd` | герой (стик и WASD), копия прошлого дубля, враги (`kind` 0–6, 6 — босс Цензор) |
 | `recorder.gd` | автозагрузка `Recorder`: путь и выборы текущего дубля, последние 5 дублей для копий |
 | `cassettes.gd`, `shelf_ui.gd` | учёт открытых кассет и статистики в прогрессе, полка коллекции с выбором жанра |
+| `focus.gd`, `juice.gd`, `assets/focus_icon.svg` | активный «Фокус» с таймерами реального времени и иконкой, общая шкала времени и хитстоп |
 | `upgrades.gd`, `weapons.gd`, `loadout.gd` | каталог оружия и плёнок (данные), параметры оружия по уровням, сборка игрока |
-| `hud.gd`, `levelup_ui.gd`, `run_menu.gd` | HUD (слой 2), выбор плёнки (слой 10), меню и экран победы (слой 20), кнопка полки кассет |
+| `hud.gd`, `levelup_ui.gd`, `run_menu.gd` | HUD (слой 2), экран выбора плёнки (слой 10), меню и экран победы (слой 20), кнопки Фокуса и полки |
 | `vhs.gd`, `vhs.gdshader` | VHS-пост-эффект (слой 1, между ареной и HUD): `pulse()`, `slow`, `rewind_hold`, `flash_rewind()` |
 | `juice.gd` | Camera2D: тряска, хитстоп. **Единственное место, где меняется `Engine.time_scale`** |
 | `backdrop.gd` | пол арены под жанр, `z_index = -10` |
 | `art.gd` | палитра (`PINK`, `CYAN`, `YELLOW`, `DARK`, `WHITE`), шрифты (`OSD_FONT`, `BOLD_FONT`), процедурные силуэты |
 | `debug_keys.gd` | отладочные клавиши, только в отладочной сборке |
-| `tests/smoke.gd`, `tests/smoke_cassettes.gd` | дымовой прогон для CI, включая учёт кассет и экран полки |
+| `tests/smoke.gd`, `tests/smoke_cassettes.gd`, `tests/smoke_focus.gd` | дымовой прогон для CI, включая полку кассет и активный Фокус |
 | `tests/shots.gd` | снимки экрана для проверки внешнего вида |
 
 Группы узлов: `enemies`, `bullets`, `ghosts`, `fx`, `pickups`.

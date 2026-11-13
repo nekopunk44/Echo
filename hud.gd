@@ -3,11 +3,13 @@ extends CanvasLayer
 ## жетоны перемотки, сборка внизу экрана, крупные сообщения по центру и итоговый экран EJECT.
 
 signal menu_requested  # кнопка «В МЕНЮ» на экране EJECT
+signal focus_requested
 
 const UpgradesScript := preload("res://upgrades.gd")
 const Art := preload("res://art.gd")
 const UpgradeIconAtlas := preload("res://assets/upgrade_icons.svg")
 const TokenTexture := preload("res://assets/pickup_rewind_token.png")
+const FocusIcon := preload("res://assets/focus_icon.svg")
 
 const MAX_LOADOUT_ICONS := 11
 const XP_WIDTH := 660.0
@@ -36,6 +38,12 @@ var eject_rewinds: Label
 var eject_hint: Label
 var eject_menu_button: Button  # выход в меню: на телефоне другого пути нет (Esc только на ПК)
 var phone := Art.is_phone()  # на телефоне нет клавиш: подсказки про них скрыты (снимки подменяют значение)
+var focus_button: Button
+var focus_button_icon: TextureRect
+var focus_button_label: Label
+var focus_bubble: Control
+var focus_bubble_label: Label
+var _focus_bubble_tween: Tween
 var _loadout_signature := ""
 var _flash_tween: Tween
 var _slot_tween: Tween
@@ -104,6 +112,7 @@ func _ready() -> void:
 	msg.add_theme_color_override("font_color", Color("00f0ff"))
 	add_child(msg)
 	_build_token_slots()
+	_build_focus_button()
 	_build_rewind_flash()
 	_build_eject()
 
@@ -122,6 +131,138 @@ func _build_token_slots() -> void:
 		slot.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		add_child(slot)
 		token_slots.append(slot)
+
+
+func _build_focus_button() -> void:
+	focus_button = Button.new()
+	focus_button.position = Vector2(540, 1018)
+	focus_button.size = Vector2(150, 136)
+	focus_button.focus_mode = Control.FOCUS_NONE
+	focus_button.visible = false
+	focus_button.add_theme_font_override("font", Art.BOLD_FONT)
+	focus_button.add_theme_font_size_override("font_size", 20)
+	focus_button.add_theme_color_override("font_color", Art.WHITE)
+	focus_button.add_theme_color_override("font_disabled_color", Color("8b7ba8"))
+	focus_button_icon = TextureRect.new()
+	focus_button_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	focus_button_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	focus_button_icon.position = Vector2(55, 8)
+	focus_button_icon.size = Vector2(40, 40)
+	focus_button_icon.texture = FocusIcon
+	focus_button_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	focus_button.add_child(focus_button_icon)
+	focus_button_label = Label.new()
+	focus_button_label.position = Vector2(4, 52)
+	focus_button_label.size = Vector2(142, 72)
+	focus_button_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	focus_button_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	focus_button_label.add_theme_font_override("font", Art.BOLD_FONT)
+	focus_button_label.add_theme_font_size_override("font_size", 18)
+	focus_button_label.add_theme_color_override("font_color", Art.WHITE)
+	focus_button_label.add_theme_color_override("font_disabled_color", Color("8b7ba8"))
+	focus_button_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	focus_button.add_child(focus_button_label)
+	_build_focus_bubble()
+	var ready_style := _focus_style(Color("1f0f3a"), Art.CYAN)
+	var active_style := _focus_style(Color("3d1d75"), Art.YELLOW)
+	var disabled_style := _focus_style(Color("140a26"), Color("6b4fa8"))
+	for state_name in ["normal", "hover", "pressed"]:
+		focus_button.add_theme_stylebox_override(state_name, ready_style)
+	focus_button.add_theme_stylebox_override("disabled", disabled_style)
+	focus_button.set_meta("ready_style", ready_style)
+	focus_button.set_meta("active_style", active_style)
+	focus_button.pressed.connect(func(): focus_requested.emit())
+	add_child(focus_button)
+
+
+## Показать способность только в бою и вывести её состояние на кнопку.
+func show_focus(in_play: bool, active: bool, seconds_left: float, cooldown_left: float) -> void:
+	focus_button.visible = in_play
+	if not in_play:
+		return
+	if active:
+		focus_button_label.text = "ФОКУС\n%.1f с" % seconds_left
+		focus_button_icon.modulate = Art.YELLOW
+		focus_button.disabled = false
+		focus_button.add_theme_stylebox_override("normal", focus_button.get_meta("active_style"))
+		focus_button.add_theme_stylebox_override("hover", focus_button.get_meta("active_style"))
+		focus_button.add_theme_stylebox_override("pressed", focus_button.get_meta("active_style"))
+	elif cooldown_left > 0.0:
+		focus_button_label.text = "ФОКУС\n%.0f с" % ceilf(cooldown_left)
+		focus_button_icon.modulate = Color("8b7ba8")
+		focus_button.disabled = true
+	else:
+		focus_button_label.text = "ФОКУС"
+		focus_button_icon.modulate = Art.CYAN
+		focus_button.disabled = false
+		var ready_style: StyleBox = focus_button.get_meta("ready_style")
+		focus_button.add_theme_stylebox_override("normal", ready_style)
+		focus_button.add_theme_stylebox_override("hover", ready_style)
+		focus_button.add_theme_stylebox_override("pressed", ready_style)
+	_set_focus_bubble_visible(in_play and not active and cooldown_left <= 0.0)
+
+
+func focus_button_hit(pos: Vector2) -> bool:
+	return focus_button.visible and focus_button.get_global_rect().has_point(pos)
+
+
+func _focus_style(bg: Color, border: Color) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = bg
+	style.border_color = border
+	style.set_border_width_all(3)
+	style.set_corner_radius_all(14)
+	return style
+
+
+func _build_focus_bubble() -> void:
+	focus_bubble = Control.new()
+	focus_bubble.position = Vector2(27, -28)
+	focus_bubble.size = Vector2(96, 44)
+	focus_bubble.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	focus_bubble.visible = false
+	var tail := Polygon2D.new()
+	tail.position = Vector2(39, 26)
+	tail.polygon = PackedVector2Array([Vector2(0, 0), Vector2(18, 0), Vector2(9, 14)])
+	tail.color = Art.YELLOW
+	focus_bubble.add_child(tail)
+	var panel := Panel.new()
+	panel.size = Vector2(96, 34)
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.add_theme_stylebox_override("panel", _focus_style(Art.YELLOW, Art.DARK))
+	focus_bubble.add_child(panel)
+	focus_bubble_label = Label.new()
+	focus_bubble_label.text = "ГОТОВ"
+	focus_bubble_label.position = Vector2(2, 1)
+	focus_bubble_label.size = Vector2(92, 32)
+	focus_bubble_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	focus_bubble_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	focus_bubble_label.add_theme_font_override("font", Art.BOLD_FONT)
+	focus_bubble_label.add_theme_font_size_override("font_size", 18)
+	focus_bubble_label.add_theme_color_override("font_color", Art.DARK)
+	focus_bubble_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.add_child(focus_bubble_label)
+	focus_button.add_child(focus_bubble)
+
+
+func _set_focus_bubble_visible(show: bool) -> void:
+	if focus_bubble.visible == show:
+		return
+	focus_bubble.visible = show
+	if _focus_bubble_tween != null:
+		_focus_bubble_tween.kill()
+		_focus_bubble_tween = null
+	if not show:
+		focus_bubble.position.y = -28.0
+		focus_bubble.modulate.a = 1.0
+		return
+	focus_bubble.position.y = -28.0
+	focus_bubble.modulate.a = 1.0
+	_focus_bubble_tween = create_tween().set_loops()
+	_focus_bubble_tween.tween_property(focus_bubble, "position:y", -32.0, 0.55).set_trans(Tween.TRANS_SINE)
+	_focus_bubble_tween.parallel().tween_property(focus_bubble, "modulate:a", 0.82, 0.55)
+	_focus_bubble_tween.tween_property(focus_bubble, "position:y", -28.0, 0.55).set_trans(Tween.TRANS_SINE)
+	_focus_bubble_tween.parallel().tween_property(focus_bubble, "modulate:a", 1.0, 0.55)
 
 
 func _build_rewind_flash() -> void:

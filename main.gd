@@ -31,6 +31,7 @@ const DebugKeysScript := preload("res://debug_keys.gd")
 const RewindScript := preload("res://rewind.gd")
 const RewindUiScript := preload("res://rewind_ui.gd")
 const HeroDeathScript := preload("res://hero_death_fx.gd")
+const FocusScript := preload("res://focus.gd")
 
 const ROUND_TIME := 30.0  # для финальной версии: 90.0
 const AD_REROLLS_PER_PICK := 1  # реклама добровольная, но барабан за роликами не должен крутиться без конца
@@ -91,6 +92,7 @@ var picker
 var run_menu
 var rewind  # rewind.gd: жетоны и откат
 var rewind_ui  # rewind_ui.gd: экран выбора после смерти
+var focus  # focus.gd: активное замедление времени
 var hud
 var vhs
 var cam
@@ -116,6 +118,10 @@ func _ready() -> void:
 	add_child(vhs)
 	hud = HudScript.new()
 	add_child(hud)
+	focus = FocusScript.new()
+	focus.main = self
+	add_child(focus)
+	hud.focus_requested.connect(focus.activate)
 	picker = LevelUpScript.new()
 	add_child(picker)
 	picker.picked.connect(_on_picked)
@@ -205,6 +211,7 @@ func _start_run(mode: String = "campaign") -> void:
 	rewind_tokens = RewindScript.REWIND_TOKENS_START  # только здесь: «Продолжить» после победы жетоны сохраняет
 	rewinds_used = 0
 	Recorder.reset()
+	focus.reset()
 	run_mode = mode
 	loadout = LoadoutScript.new()
 	loadout.set_hero(Recorder.hero)
@@ -257,6 +264,7 @@ func _start_take() -> void:
 		"КАССЕТА: %s  ·  ЭТАП %d/4%s\n%s" % [GENRES[genre]["name"], act, boss_tag, ACT_RULES[act_index]["name"]]
 	)
 	state = State.PLAY
+	hud.show_focus(true, false, 0.0, focus.cooldown_remaining())
 	hud.msg.text = ""
 	hud.hide_eject()
 	armor_charges = _armor_max()
@@ -915,6 +923,7 @@ func _process(_delta: float) -> void:
 	hud.show_take(take, take_time, CAMPAIGN_TAKES, run_mode == "endless", state == State.PLAY)
 	hud.show_level(level, xp, xp_need(level))
 	hud.show_tokens(rewind_tokens)
+	hud.show_focus(state == State.PLAY, focus.active, focus.remaining(), focus.cooldown_remaining())
 	hud.refresh_loadout(loadout, armor_charges)
 	vhs.rewind_hold = state == State.REWIND
 	if is_instance_valid(player):
@@ -942,6 +951,16 @@ func _draw() -> void:
 ## После смерти: тап или любая клавиша — заново, Esc или кнопка «В МЕНЮ» — в главное меню.
 ## Пока идёт такт смерти с жетоном, ввод игнорируется целиком: иначе тап перезапустил бы забег в обход экрана выбора.
 func _input(event: InputEvent) -> void:
+	if (
+		state == State.PLAY
+		and event is InputEventKey
+		and event.keycode == KEY_F
+		and event.is_pressed()
+		and not event.is_echo()
+	):
+		focus.activate()
+		get_viewport().set_input_as_handled()
+		return
 	if state != State.DEAD or rewind.beat or not event.is_pressed() or event.is_echo():
 		return
 	if (event is InputEventScreenTouch or event is InputEventMouseButton) and hud.eject_menu_hit(event.position):

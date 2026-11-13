@@ -11,6 +11,7 @@ const BoomerangScript := preload("res://boomerang.gd")
 const EnemyScript := preload("res://enemy.gd")
 const HeroDeathFxScript := preload("res://hero_death_fx.gd")
 const CassetteChecks := preload("res://tests/smoke_cassettes.gd")
+const FocusChecks := preload("res://tests/smoke_focus.gd")
 
 const HEROES := ["clerk", "courier", "guard", "projectionist", "popcorn", "critic"]
 const TAKES_PER_HERO := 4
@@ -63,6 +64,8 @@ func _run() -> void:
 	await _check_eject_menu_tap()
 	await _check_victory()
 	await cassette_checks.shelf()
+	var focus_checks = FocusChecks.new(self)
+	await focus_checks.run()
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(PROGRESS_PATH))
 	if failed:
 		get_tree().quit(1)

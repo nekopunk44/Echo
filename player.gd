@@ -58,6 +58,8 @@ func _ready() -> void:
 
 func _input(event: InputEvent) -> void:
 	if event is InputEventScreenTouch:
+		if main.hud.focus_button_hit(event.position):
+			return  # нажатие способности не должно начинать или отпускать виртуальный стик
 		if event.pressed and touch_index == -1:
 			touch_index = event.index
 			touching = true
