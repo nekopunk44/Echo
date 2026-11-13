@@ -107,6 +107,8 @@ func shelf() -> void:
 	# Кнопка «СЛУЧАЙНАЯ КАССЕТА»
 	shelf.random_button.pressed.emit()
 	t._expect(t.main.cassettes.selected == t.main.cassettes.RANDOM, "полка: случайная кнопка не вернула RANDOM")
+	t._expect(shelf.details_title.text == "СЛУЧАЙНАЯ КАССЕТА", "полка: для RANDOM не показан заголовок кассеты")
+	t._expect(shelf.details_tagline.text != "", "полка: для RANDOM не показано описание")
 
 	# Кнопка «НАЗАД»
 	shelf.back_button.pressed.emit()
