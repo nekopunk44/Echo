@@ -8,12 +8,15 @@ signal menu_requested
 
 const Upgrades := preload("res://upgrades.gd")
 const Art := preload("res://art.gd")
+const ShelfScript := preload("res://shelf_ui.gd")
 
 const CARD_SIZE := Vector2(200, 196)
 const CARD_GAP := 20.0
 const GRID_TOP := 420.0
 
 var cassettes  # cassettes.gd, задаёт main до add_child: меню строится в _ready
+var shelf
+var shelf_button: Button
 var root: Control
 var title_labels: Array = []  # голубой и розовый сдвиг под основным текстом
 var detail_label: Label
@@ -63,7 +66,7 @@ func _ready() -> void:
 	trait_label = _label("", Vector2(50, 845), Vector2(620, 80), 21, Art.YELLOW)
 	root.add_child(trait_label)
 
-	campaign_button = _button("КАМПАНИЯ  ·  12 ДУБЛЕЙ", Vector2(110, 945), Vector2(500, 84), Art.CYAN)
+	campaign_button = _button("КАМПАНИЯ, 12 ДУБЛЕЙ", Vector2(110, 945), Vector2(500, 84), Art.CYAN)
 	campaign_button.pressed.connect(func(): campaign_requested.emit(selected_hero))
 	root.add_child(campaign_button)
 
@@ -76,10 +79,44 @@ func _ready() -> void:
 	root.add_child(menu_button)
 
 	controls_label = _label(
-		"СТИК / WASD — ДВИЖЕНИЕ  ·  АТАКИ АВТОМАТИЧЕСКИЕ", Vector2(40, 1150), Vector2(640, 60), 18, Color("b69cff")
+		"СТИК / WASD — ДВИЖЕНИЕ\nАТАКИ АВТОМАТИЧЕСКИЕ", Vector2(40, 1150), Vector2(640, 60), 18, Color("b69cff")
 	)
 	root.add_child(controls_label)
+
+	shelf = ShelfScript.new()
+	shelf.cassettes = cassettes
+	add_child(shelf)
+	shelf.closed.connect(_refresh_shelf_button)
+
+	shelf_button = _button("", Vector2(450, 30), Vector2(240, 88), Art.YELLOW)
+	shelf_button.add_theme_font_size_override("font_size", 20)
+	shelf_button.add_theme_color_override("font_color", Art.CYAN)
+	shelf_button.pressed.connect(open_shelf)
+	root.add_child(shelf_button)
+
 	show_menu("clerk")
+
+
+## Открыть экран коллекции кассет.
+func open_shelf() -> void:
+	if shelf != null:
+		shelf.open()
+
+
+## Обновить двухстрочную подпись кнопки полки в верхнем правом углу меню.
+func _refresh_shelf_button() -> void:
+	if shelf_button == null:
+		return
+	var tape_name := "СЛУЧАЙНАЯ"
+	var tape_color: Color = Art.CYAN
+	if cassettes != null and cassettes.selected != cassettes.RANDOM:
+		var chosen_idx: int = cassettes.selected
+		if chosen_idx >= 0 and chosen_idx < cassettes.COVERS.size():
+			var cover: Dictionary = cassettes.COVERS[chosen_idx]
+			tape_name = str(cover["name"])
+			tape_color = cover["color"]
+	shelf_button.text = "ПОЛКА КАССЕТ\n%s" % tape_name
+	shelf_button.add_theme_color_override("font_color", tape_color)
 
 
 func show_menu(hero: String = "clerk", endless_available: bool = false) -> void:
@@ -87,7 +124,7 @@ func show_menu(hero: String = "clerk", endless_available: bool = false) -> void:
 	victory_visible = false
 	_select_hero(hero if Upgrades.HERO_INFO.has(hero) else "clerk")
 	_set_title("ECHO", 112)
-	detail_label.text = "12 ДУБЛЕЙ · 4 АКТА\nЦЕНЗОР КАЖДЫЙ ТРЕТИЙ ДУБЛЬ\nПЯТЬ ПОСЛЕДНИХ ДУБЛЕЙ СТАНУТ ЭХОМ"
+	detail_label.text = "12 ДУБЛЕЙ, 4 АКТА\nЦЕНЗОР КАЖДЫЙ ТРЕТИЙ ДУБЛЬ\nПЯТЬ ПОСЛЕДНИХ ДУБЛЕЙ СТАНУТ ЭХОМ"
 	hero_grid.visible = true
 	trait_label.visible = true
 	campaign_button.visible = true
@@ -96,13 +133,16 @@ func show_menu(hero: String = "clerk", endless_available: bool = false) -> void:
 	endless_button.text = "БЕСКОНЕЧНЫЙ РЕЖИМ" if endless_available else "БЕСКОНЕЧНЫЙ — ПОСЛЕ КАМПАНИИ"
 	menu_button.visible = false
 	controls_label.visible = true
+	if shelf_button != null:
+		shelf_button.visible = true
+		_refresh_shelf_button()
 
 
 func show_victory(kills: int, level: int) -> void:
 	root.visible = true
 	victory_visible = true
 	_set_title("THE END", 64)
-	detail_label.text = "ФИНАЛЬНЫЙ КАДР · ЦЕНЗОР ПОВЕРЖЕН\nУБИЙСТВ: %d   ·   УРОВЕНЬ: %d" % [kills, level]
+	detail_label.text = "ФИНАЛЬНЫЙ КАДР, ЦЕНЗОР ПОВЕРЖЕН\nУБИЙСТВ: %d, УРОВЕНЬ: %d" % [kills, level]
 	hero_grid.visible = false
 	trait_label.visible = false
 	campaign_button.visible = false
@@ -111,6 +151,10 @@ func show_victory(kills: int, level: int) -> void:
 	endless_button.text = "ПРОДОЛЖИТЬ В БЕСКОНЕЧНОМ РЕЖИМЕ"
 	menu_button.visible = true
 	controls_label.visible = false
+	if shelf_button != null:
+		shelf_button.visible = false
+	if shelf != null and shelf.is_open():
+		shelf.close()
 
 
 func restore_menu_buttons() -> void:
@@ -121,6 +165,8 @@ func restore_menu_buttons() -> void:
 func hide_panel() -> void:
 	root.visible = false
 	restore_menu_buttons()
+	if shelf != null and shelf.is_open():
+		shelf.close()
 
 
 func _set_title(text: String, font_size: int) -> void:
