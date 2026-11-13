@@ -14,6 +14,59 @@ const CARD_SIZE := Vector2(200, 196)
 const CARD_GAP := 20.0
 const GRID_TOP := 420.0
 
+
+class MenuAtmosphere:
+	extends Control
+	var reel_phase := 0.0
+	var scan_y := 80.0
+
+	func _ready() -> void:
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+
+	func _process(delta: float) -> void:
+		reel_phase = fposmod(reel_phase + delta * 0.65, TAU)
+		scan_y = fposmod(scan_y + delta * 36.0, 1220.0) + 30.0
+		queue_redraw()
+
+	func _draw() -> void:
+		var frame := Color(0.42, 0.31, 0.66, 0.20)
+		var cyan := Color(Art.CYAN, 0.23)
+		var pink := Color(Art.PINK, 0.20)
+		var center := Vector2(360.0, 214.0)
+		for radius in [132.0, 158.0, 184.0]:
+			draw_arc(center, radius, 0.0, TAU, 96, Color(0.50, 0.30, 0.78, 0.035), 2.0)
+
+		# Прозрачный силуэт кассеты остаётся под логотипом и поддерживает тему ночного видеопроката.
+		draw_rect(Rect2(146, 151, 428, 130), Color(0.15, 0.06, 0.24, 0.12), true)
+		draw_rect(Rect2(146, 151, 428, 130), Color(cyan, 0.28), false, 2.0)
+		draw_rect(Rect2(166, 164, 388, 16), Color(pink, 0.30), false, 2.0)
+		for reel_x in [264.0, 456.0]:
+			var reel := Vector2(reel_x, 225.0)
+			draw_circle(reel, 36.0, Color(0.05, 0.02, 0.10, 0.42))
+			draw_arc(reel, 36.0, 0.0, TAU, 48, Color(cyan, 0.30), 2.0)
+			draw_circle(reel, 8.0, Color(pink, 0.20))
+			for spoke in 3:
+				var angle := reel_phase + TAU * spoke / 3.0
+				var direction := Vector2.from_angle(angle)
+				draw_line(reel + direction * 11.0, reel + direction * 29.0, Color(Art.WHITE, 0.20), 2.0)
+		draw_rect(Rect2(302, 198, 116, 54), Color(Art.DARK, 0.42), true)
+		draw_rect(Rect2(302, 198, 116, 54), Color(Art.YELLOW, 0.19), false, 2.0)
+		for i in 7:
+			draw_line(Vector2(312 + i * 16, 205), Vector2(312 + i * 16, 245), Color(Art.WHITE, 0.10), 1.0)
+
+		# Метки по краям напоминают рамку видоискателя и не конкурируют с содержимым экрана.
+		draw_line(Vector2(20, 32), Vector2(20, 1248), frame, 2.0)
+		draw_line(Vector2(700, 32), Vector2(700, 1248), frame, 2.0)
+		for corner in [Vector2(20, 32), Vector2(700, 32), Vector2(20, 1248), Vector2(700, 1248)]:
+			var sx := -1.0 if corner.x > 360.0 else 1.0
+			var sy := -1.0 if corner.y > 640.0 else 1.0
+			var color := pink if corner.x > 360.0 else cyan
+			draw_line(corner, corner + Vector2(sx * 26.0, 0), color, 3.0)
+			draw_line(corner, corner + Vector2(0, sy * 26.0), color, 3.0)
+		draw_line(Vector2(44, scan_y), Vector2(676, scan_y), Color(Art.CYAN, 0.055), 2.0)
+
+
 var cassettes  # cassettes.gd, задаёт main до add_child: меню строится в _ready
 var shelf
 var shelf_button: Button
@@ -43,6 +96,7 @@ func _ready() -> void:
 	dim.color = Color(0.05, 0.02, 0.10)  # непрозрачный: HUD забега под меню не просвечивает
 	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	root.add_child(dim)
+	root.add_child(MenuAtmosphere.new())
 	root.add_child(_osd_corner("PLAY ▶", Vector2(40, 48), Art.WHITE))
 
 	for layer_def in [[Vector2(-6, 0), Art.CYAN], [Vector2(6, 0), Art.PINK], [Vector2.ZERO, Art.WHITE]]:
