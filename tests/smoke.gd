@@ -10,11 +10,10 @@ const LoadoutScript := preload("res://loadout.gd")
 const BoomerangScript := preload("res://boomerang.gd")
 const EnemyScript := preload("res://enemy.gd")
 const HeroDeathFxScript := preload("res://hero_death_fx.gd")
-const CassettesScript := preload("res://cassettes.gd")
+const CassetteChecks := preload("res://tests/smoke_cassettes.gd")
 
 const HEROES := ["clerk", "courier", "guard", "projectionist", "popcorn", "critic"]
 const TAKES_PER_HERO := 4
-const CASSETTES_PATH := "user://smoke_cassettes.cfg"
 const MONTAGES := 4
 const STEP := 1.0 / 60.0
 const MAX_FRAMES := 250000
@@ -36,14 +35,15 @@ func _ready() -> void:
 
 
 func _run() -> void:
-	_check_cassette_data()
+	var cassette_checks = CassetteChecks.new(self)
+	cassette_checks.data()
 	for hero in HEROES:
 		main.run_menu.campaign_requested.emit(hero)
 		_expect(main.state == main.State.PLAY, "%s: забег не начался" % hero)
 		_expect(main.rewind_tokens == 1, "%s: на старте %d жетонов вместо одного" % [hero, main.rewind_tokens])
 		await _play_takes(TAKES_PER_HERO)
 		_expect(Recorder.ghosts.size() == TAKES_PER_HERO, "%s: записалось копий %d" % [hero, Recorder.ghosts.size()])
-	_check_cassettes_after_play()
+	cassette_checks.after_play()
 	await _check_montages()
 	await _check_ad_reroll()
 	await _check_hit_fx()
@@ -62,6 +62,7 @@ func _run() -> void:
 	await _check_ad_rewind_declined()
 	await _check_eject_menu_tap()
 	await _check_victory()
+	await cassette_checks.shelf()
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(PROGRESS_PATH))
 	if failed:
 		get_tree().quit(1)
@@ -129,59 +130,6 @@ func _check_montages() -> void:
 		for id in main.loadout.levels:
 			has_montage = has_montage or UpgradesScript.CATALOG[id].has("parts")
 		_expect(has_montage, "Монтаж %d не собрался: %s" % [i + 1, main.loadout.levels])
-
-
-## Данные полки без игры: названия совпадают с жанрами, закрытую кассету не выбрать, убийства делятся по кассетам,
-## всё переживает перезагрузку, а запись не стирает другие ключи файла прогресса.
-func _check_cassette_data() -> void:
-	_expect(CassettesScript.COVERS.size() == main.GENRES.size(), "полка: обложек не столько, сколько жанров")
-	for i in CassettesScript.COVERS.size():
-		_expect(
-			CassettesScript.COVERS[i]["name"] == main.GENRES[i]["name"], "полка: название %d не совпало с жанром" % i
-		)
-		_expect(ResourceLoader.exists(CassettesScript.COVERS[i]["sprite"]), "полка: нет спрайта обложки %d" % i)
-	var absolute := ProjectSettings.globalize_path(CASSETTES_PATH)
-	DirAccess.remove_absolute(absolute)
-	var other := ConfigFile.new()
-	other.set_value("progress", "endless_unlocked", true)
-	other.save(CASSETTES_PATH)
-	var c = CassettesScript.new(CASSETTES_PATH)
-	_expect(c.seen_count() == 0, "полка: новый игрок уже что-то видел")
-	c.select(1)
-	_expect(c.selected == c.RANDOM, "полка: закрытую кассету можно выбрать")
-	c.on_take_started(1)
-	c.select(1)
-	_expect(c.selected == 1 and c.pick_genre() == 1, "полка: выбранная кассета не идёт в забег")
-	c.new_run()
-	c.sync_kills(1, 10)
-	c.on_take_started(2)
-	c.sync_kills(2, 25)
-	c.sync_kills(2, 25)  # повторный вызов на той же цифре ничего не прибавляет
-	c.add_take(2)
-	c.add_censor(2)
-	c.add_final(1)
-	var d = CassettesScript.new(CASSETTES_PATH)
-	_expect(d.selected == 1 and d.seen_count() == 2, "полка: выбор или открытые кассеты не сохранились")
-	_expect(d.stats(1)["kills"] == 10 and d.stats(2)["kills"] == 15, "полка: убийства разнесены неверно")
-	_expect(d.stats(2)["takes"] == 1 and d.stats(2)["censors"] == 1, "полка: дубли или Цензоры не сохранились")
-	_expect(d.stats(1)["finals"] == 1, "полка: финал не сохранился")
-	var back := ConfigFile.new()
-	back.load(CASSETTES_PATH)
-	_expect(bool(back.get_value("progress", "endless_unlocked", false)), "полка стёрла другие ключи файла прогресса")
-	DirAccess.remove_absolute(absolute)
-
-
-## После дублей за всех героев: забег листает жанры по актам, значит кассет открылось больше одной и счётчики пошли.
-func _check_cassettes_after_play() -> void:
-	var takes := 0
-	var kills := 0
-	for i in main.cassettes.count():
-		var row: Dictionary = main.cassettes.stats(i)
-		takes += int(row["takes"])
-		kills += int(row["kills"])
-	_expect(main.cassettes.seen_count() >= 2, "полка: за четыре дубля открылось меньше двух кассет")
-	_expect(takes >= HEROES.size() * TAKES_PER_HERO, "полка: дублей засчитано всего %d" % takes)
-	_expect(kills > 0, "полка: убийства не дошли до кассет")
 
 
 ## Переброс за рекламу: кнопка появляется, только когда бесплатных перебросов нет, один раз на экран выбора;
