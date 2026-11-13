@@ -13,6 +13,7 @@ const CARD_SIZE := Vector2(200, 196)
 const CARD_GAP := 20.0
 const GRID_TOP := 420.0
 
+var cassettes  # cassettes.gd, задаёт main до add_child: меню строится в _ready
 var root: Control
 var title_labels: Array = []  # голубой и розовый сдвиг под основным текстом
 var detail_label: Label

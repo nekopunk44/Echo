@@ -16,6 +16,7 @@ const PopKernelScript := preload("res://popkernel.gd")
 const TagShotScript := preload("res://tagshot.gd")
 const WeaponsScript := preload("res://weapons.gd")
 const BurstScript := preload("res://glitch_burst.gd")
+const CassettesScript := preload("res://cassettes.gd")
 const HitFxScript := preload("res://hit_fx.gd")
 const PickupScript := preload("res://pickup.gd")
 const LoadoutScript := preload("res://loadout.gd")
@@ -95,6 +96,7 @@ var vhs
 var cam
 var backdrop
 var hit_fx
+var cassettes  # cassettes.gd: полка кассет и статистика по ним
 var genre := 0
 var forced_genre := -1
 var boss_spawned := false
@@ -119,7 +121,9 @@ func _ready() -> void:
 	picker.picked.connect(_on_picked)
 	picker.reroll_requested.connect(_on_reroll)
 	picker.ad_reroll_requested.connect(_on_ad_reroll)
+	cassettes = CassettesScript.new(progress_path)
 	run_menu = RunMenuScript.new()
+	run_menu.cassettes = cassettes
 	add_child(run_menu)
 	run_menu.campaign_requested.connect(_on_campaign_requested)
 	run_menu.endless_requested.connect(_on_endless_requested)
@@ -213,8 +217,9 @@ func _start_run(mode: String = "campaign") -> void:
 	run_seed = randi()
 	take = 1
 	kills = 0
-	run_genre = forced_genre if forced_genre >= 0 else randi() % GENRES.size()
+	run_genre = forced_genre if forced_genre >= 0 else cassettes.pick_genre()
 	genre = run_genre
+	cassettes.new_run()
 	hud.reset_loadout()
 	_start_take()
 
@@ -242,7 +247,9 @@ func _start_take() -> void:
 	boss_spawned = false
 	boss_defeated = false
 	act_index = int((take - 1) / BOSS_EVERY) % ACT_RULES.size()
+	cassettes.sync_kills(genre, kills)  # до смены жанра: убийства прошлого дубля принадлежат его кассете
 	genre = (run_genre + int((take - 1) / BOSS_EVERY)) % GENRES.size()
+	cassettes.on_take_started(genre)
 	backdrop.set_genre(genre)
 	var act := act_index + 1
 	var boss_tag := "  ·  БОСС" if _is_boss_take() else ""
@@ -284,6 +291,7 @@ func _complete_take() -> void:
 	for p in get_tree().get_nodes_in_group("pickups"):
 		p.collect()
 	Recorder.finish_take()
+	cassettes.add_take(genre)
 	take += 1
 	state = State.REWIND
 	rewind_timer = 0.8
@@ -298,6 +306,7 @@ func _is_boss_take() -> bool:
 
 func boss_died() -> void:
 	boss_defeated = true
+	cassettes.add_censor(genre)
 	vhs.pulse(0.8)
 	cam.shake(1.0)
 	cam.hitstop(0.18)
@@ -307,7 +316,10 @@ func boss_died() -> void:
 		state = State.VICTORY
 		player.active = false
 		endless_unlocked = true
+		cassettes.sync_kills(genre, kills)
+		cassettes.add_final(run_genre)
 		var progress := ConfigFile.new()
+		progress.load(progress_path)  # в файле лежит и полка кассет: без чтения она бы стёрлась
 		progress.set_value("progress", "endless_unlocked", true)
 		progress.save(progress_path)
 		run_menu.show_victory(kills, level)
@@ -390,6 +402,7 @@ func player_died() -> void:
 
 ## Итоговый экран конца забега: тап или клавиша через 0.4 с — заново, Esc — в меню.
 func show_eject() -> void:
+	cassettes.sync_kills(genre, kills)
 	hud.show_eject(GENRES[genre]["name"], kills, level, take, rewinds_used)
 
 
